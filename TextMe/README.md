@@ -31,6 +31,8 @@ NUM_QUESTIONS=10
 SEND_HOUR=9
 SEND_MINUTE=0
 PORT=5000
+SEND_ON_START=true
+IMAGE_FREQUENCY=0.3
 ```
 
 ### 3. Add recipients
@@ -95,6 +97,28 @@ Submit an answer:
 
 Daily questions are sent automatically at the time set in `SEND_HOUR` and `SEND_MINUTE`.
 
+When `SEND_ON_START=true`, the app also sends a question to every recipient automatically as soon as it starts up and finishes loading questions (~30 seconds after launch). Set `SEND_ON_START=false` to disable this.
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | Claude API key (required) |
+| `TWILIO_ACCOUNT_SID` | — | Twilio account SID (required) |
+| `TWILIO_AUTH_TOKEN` | — | Twilio auth token (required) |
+| `TWILIO_PHONE_NUMBER` | — | Your Twilio phone number |
+| `USE_WHATSAPP` | `false` | Set `true` to use WhatsApp sandbox |
+| `WHATSAPP_NUMBER` | — | WhatsApp sandbox number |
+| `NUM_QUESTIONS` | `10` | Number of questions to generate from PDFs |
+| `SEND_HOUR` | `9` | Hour to send daily questions (24h) |
+| `SEND_MINUTE` | `0` | Minute to send daily questions |
+| `SEND_ON_START` | `true` | Send questions to all recipients on app startup |
+| `IMAGE_FREQUENCY` | `1.0` | Fraction of questions to attach an image (0.0–1.0) |
+| `NGROK_URL` | — | Public ngrok URL for serving images |
+| `PORT` | `5000` | Flask server port |
+
 ---
 
 ## Files
@@ -102,7 +126,8 @@ Daily questions are sent automatically at the time set in `SEND_HOUR` and `SEND_
 | File | Purpose |
 |---|---|
 | `app.py` | Main application |
-| `recipients.txt` | Phone numbers to send daily questions to |
+| `recipients.txt` | Phone numbers and names for daily questions |
 | `progress.json` | Tracks which question each recipient is on (auto-created) |
 | `.env` | API keys and settings (never commit this) |
+| `images/` | Extracted PDF images, served at `/images/<filename>` |
 | `*.pdf` | Study material PDFs |
