@@ -15,7 +15,12 @@ load_dotenv()
 app = Flask(__name__)
 
 # Config
-PDF_PATH = os.getenv("PDF_PATH", r"C:\Users\Emily\PycharmProjects\TextMe\part1.pdf")
+PDF_DIR = os.getenv("PDF_DIR", r"C:\Users\Emily\PycharmProjects\TextMe")
+PDF_PATHS = [
+    os.path.join(PDF_DIR, "part1.pdf"),
+    os.path.join(PDF_DIR, "CriticalCare.pdf"),
+    os.path.join(PDF_DIR, "Thoracic.pdf"),
+]
 NUM_QUESTIONS = int(os.getenv("NUM_QUESTIONS", "10"))
 SEND_HOUR = int(os.getenv("SEND_HOUR", "9"))   # 9 AM daily by default
 SEND_MINUTE = int(os.getenv("SEND_MINUTE", "0"))
@@ -23,6 +28,8 @@ SEND_MINUTE = int(os.getenv("SEND_MINUTE", "0"))
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+USE_WHATSAPP = os.getenv("USE_WHATSAPP", "false").lower() == "true"
+WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER", "whatsapp:+14155238886")  # Twilio sandbox default
 
 RECIPIENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recipients.txt")
 PROGRESS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "progress.json")
@@ -40,11 +47,22 @@ sessions: dict = {}  # phone -> pending question waiting for answer
 # Helpers
 # ---------------------------------------------------------------------------
 
-def load_recipients() -> list:
+def load_recipients() -> dict:
+    """Returns a dict of {phone: name}."""
     if not os.path.exists(RECIPIENTS_FILE):
-        return []
+        return {}
+    result = {}
     with open(RECIPIENTS_FILE) as f:
-        return [l.strip() for l in f if l.strip() and not l.startswith("#")]
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "," in line:
+                phone, name = line.split(",", 1)
+                result[phone.strip()] = name.strip()
+            else:
+                result[line] = ""
+    return result
 
 
 def load_progress() -> dict:
@@ -60,12 +78,16 @@ def save_progress(progress: dict) -> None:
 
 
 def extract_pdf_text() -> str:
-    reader = PdfReader(PDF_PATH)
     parts = []
-    for page in reader.pages:
-        text = page.extract_text()
-        if text:
-            parts.append(text)
+    for path in PDF_PATHS:
+        if not os.path.exists(path):
+            print(f"[Quiz] Warning: {path} not found, skipping.")
+            continue
+        reader = PdfReader(path)
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                parts.append(text)
     return "\n\n".join(parts)
 
 
@@ -85,8 +107,9 @@ def generate_questions(text: str, num_questions: int) -> list:
                 '  "question": "The question text",\n'
                 '  "options": {"A": "...", "B": "...", "C": "...", "D": "..."},\n'
                 '  "correct": "A",\n'
-                '  "explanation": "Why this answer is correct and the others are wrong"\n'
+                '  "explanation": "A conversational explanation of the concept — write as if talking to a student, focus on why the concept works the way it does, do NOT reference \'the text\' or \'the passage\' or any source material"\n'
                 "}\n\n"
+                "For explanations: be friendly and direct, explain the underlying concept in plain language, and briefly mention why the wrong answers are off.\n\n"
                 f"TEXT:\n{text}"
             )
         }]
@@ -100,10 +123,25 @@ def generate_questions(text: str, num_questions: int) -> list:
     return json.loads(content)
 
 
+def to_whatsapp(phone: str) -> str:
+    """Add whatsapp: prefix if not already present."""
+    return phone if phone.startswith("whatsapp:") else f"whatsapp:{phone}"
+
+
+def strip_whatsapp(phone: str) -> str:
+    """Remove whatsapp: prefix for lookups."""
+    return phone.replace("whatsapp:", "")
+
+
+def get_from_number(phone: str) -> str:
+    """Return the correct from number based on channel."""
+    return WHATSAPP_NUMBER if USE_WHATSAPP else TWILIO_PHONE_NUMBER
+
+
 def preload_questions() -> None:
     global _questions, _questions_error
     try:
-        print(f"[Quiz] Extracting text from {PDF_PATH}...")
+        print(f"[Quiz] Extracting text from PDFs...")
         text = extract_pdf_text()
         print(f"[Quiz] Extracted {len(text):,} characters. Generating {NUM_QUESTIONS} questions...")
         _questions = generate_questions(text, NUM_QUESTIONS)
@@ -140,23 +178,25 @@ def send_daily_questions() -> None:
 
     progress = load_progress()
 
-    for phone in recipients:
+    for phone, name in recipients.items():
         idx = progress.get(phone, 0)
         if idx >= len(_questions):
             idx = 0  # loop back to start
 
         q = _questions[idx]
-        body = f"📚 Daily Quiz!\n\n{format_question(q, idx + 1, len(_questions))}"
+        greeting = f"Hi {name}! " if name else ""
+        body = f"📚 {greeting}Daily Quiz!\n\n{format_question(q, idx + 1, len(_questions))}"
 
+        to = to_whatsapp(phone) if USE_WHATSAPP else phone
         try:
             twilio.messages.create(
-                to=phone,
-                from_=TWILIO_PHONE_NUMBER,
+                to=to,
+                from_=get_from_number(phone),
                 body=body
             )
-            sessions[phone] = {"question": q, "index": idx}
+            sessions[phone] = {"question": q, "index": idx, "name": name}
             progress[phone] = idx + 1
-            print(f"[Scheduler] Sent Q{idx + 1} to {phone}")
+            print(f"[Scheduler] Sent Q{idx + 1} to {name or phone}")
         except Exception as exc:
             print(f"[Scheduler] Failed to send to {phone}: {exc}")
 
@@ -169,7 +209,7 @@ def send_daily_questions() -> None:
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    from_number = request.form.get("From", "")
+    from_number = strip_whatsapp(request.form.get("From", ""))
     body = request.form.get("Body", "").strip().upper()
 
     resp = MessagingResponse()
@@ -177,6 +217,8 @@ def webhook():
     # ── Answer to a pending question ────────────────────────────────────────
     if from_number in sessions:
         q = sessions[from_number]["question"]
+        name = sessions[from_number].get("name", "")
+        thanks = f"Thanks for your answer, {name}!\n\n" if name else "Thanks for your answer!\n\n"
 
         if body not in ("A", "B", "C", "D"):
             resp.message("Please reply with A, B, C, or D.")
@@ -184,10 +226,10 @@ def webhook():
 
         correct = q["correct"]
         if body == correct:
-            feedback = f"✅ Correct!\n\n{q['explanation']}"
+            feedback = f"{thanks}✅ Correct!\n\n{q['explanation']}"
         else:
             feedback = (
-                f"❌ Incorrect. The correct answer is "
+                f"{thanks}❌ Incorrect. The correct answer is "
                 f"{correct}) {q['options'][correct]}.\n\n"
                 f"{q['explanation']}"
             )
@@ -201,8 +243,10 @@ def webhook():
         if _questions is None:
             resp.message("Still loading, try again in a moment! ⏳")
         else:
+            recipients = load_recipients()
+            name = recipients.get(from_number, "")
             q = random.choice(_questions)
-            sessions[from_number] = {"question": q}
+            sessions[from_number] = {"question": q, "name": name}
             resp.message(f"📚 Here's a question!\n\n{format_question(q, 1, 1)}")
         return Response(str(resp), mimetype="text/xml")
 
