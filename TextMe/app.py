@@ -420,9 +420,9 @@ def get_image_url_for_question(q: dict) -> str | None:
 # Formatting
 # ---------------------------------------------------------------------------
 
-def format_question(q: dict, num: int, total: int) -> str:
+def format_question(q: dict) -> str:
     return (
-        f"Q{num}/{total}: {q['question']}\n\n"
+        f"{q['question']}\n\n"
         f"A) {q['options']['A']}\n"
         f"B) {q['options']['B']}\n"
         f"C) {q['options']['C']}\n"
@@ -492,7 +492,7 @@ def send_daily_questions() -> None:
 
         q = _questions[idx]
         greeting = f"Hi {name}! " if name else ""
-        body = f"📚 {greeting}Daily Quiz!\n\n{format_question(q, idx + 1, len(_questions))}"
+        body = f"📚 {greeting}Daily Quiz!\n\n{format_question(q)}"
         image_url = get_image_url_for_question(q)
 
         to = to_whatsapp(phone) if USE_WHATSAPP else phone
@@ -906,7 +906,7 @@ def webhook():
             q = random.choice(_questions)
             sessions[from_number] = {"question": q, "name": name}
             log_event("question_sent", from_number, name, source="on_demand", question=q["question"], q=q)
-            msg = resp.message(f"📚 Here's a question!\n\n{format_question(q, 1, 1)}")
+            msg = resp.message(f"📚 Here's a question!\n\n{format_question(q)}")
             image_url = get_image_url_for_question(q)
             if image_url:
                 msg.media(image_url)
