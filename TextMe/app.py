@@ -443,18 +443,6 @@ def strip_whatsapp(phone: str) -> str:
     return phone.replace("whatsapp:", "").strip()
 
 
-GSM_REPLACEMENTS = str.maketrans({
-    "—": "-", "–": "-", "‘": "'", "’": "'",
-    "“": '"', "”": '"', "…": "...", " ": " ",
-})
-
-
-def to_gsm(text: str) -> str:
-    # One non-GSM character (emoji, em dash) switches the whole SMS to UCS-2,
-    # cutting each segment from 153 to 67 chars and slowing delivery.
-    return text.translate(GSM_REPLACEMENTS)
-
-
 def get_from_number(phone: str) -> str:
     return WHATSAPP_NUMBER if USE_WHATSAPP else TWILIO_PHONE_NUMBER
 
@@ -864,10 +852,10 @@ def webhook():
 
         correct = q["correct"]
         if body == correct:
-            feedback = f"{thanks}CORRECT!\n\n{q['explanation']}"
+            feedback = f"{thanks}✅ Correct!\n\n{q['explanation']}"
         else:
             feedback = (
-                f"{thanks}INCORRECT. The correct answer is "
+                f"{thanks}❌ Incorrect. The correct answer is "
                 f"{correct}) {q['options'][correct]}.\n\n"
                 f"{q['explanation']}"
             )
@@ -878,7 +866,7 @@ def webhook():
             is_correct=body == correct,
         )
         del sessions[from_number]
-        resp.message(to_gsm(feedback))
+        resp.message(feedback)
         return Response(str(resp), mimetype="text/xml")
 
     # ── HELP ─────────────────────────────────────────────────────────────────
