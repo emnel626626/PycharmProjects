@@ -1,16 +1,17 @@
-# TextMe Quiz App
+# TextMe Quiz App (Text-The-Resident)
 
-Sends daily multiple choice quiz questions via SMS, generated automatically from PDF study materials using Claude AI.
+Texts a daily multiple-choice question to everyone on the list, generated from PDF study materials by Claude. People reply A, B, C, or D and get instant feedback with an explanation. Sending and receiving texts goes through Twilio on a registered A2P 10DLC campaign.
+
+See [How_TextMe_Works.pdf](How_TextMe_Works.pdf) for a diagram.
 
 ---
 
 ## How It Works
 
-1. On startup the app reads all PDFs in the folder and sends the text to Claude
-2. Claude generates multiple choice questions from the material
-3. Every day at a set time, one question is texted to everyone in `recipients.txt`
-4. Recipients reply with A, B, C, or D
-5. The app responds with whether they got it right and an explanation
+1. **Questions:** on first start, the app reads the PDFs and asks Claude to write `NUM_QUESTIONS` questions, split across the PDFs by size and sampled evenly through each one. Claude also checks each question's page image and keeps it only if it fits the question without giving away the answer. Everything is cached in `questions_cache.json`.
+2. **Daily send:** every day at `SEND_HOUR:SEND_MINUTE`, everyone in `recipients.txt` gets their next question (anyone who texted STOP is skipped). When someone reaches the end of the list, Claude writes a new batch that doesn't repeat earlier questions, so nobody gets a repeat.
+3. **Replies:** Twilio forwards incoming texts through ngrok to `/webhook`. The app checks Twilio's signature, then handles the answer or command.
+4. **Report:** every opt-in, question sent, answer, flag, and opt-out is logged to `events.jsonl` and summarized at `/report`.
 
 ---
 
@@ -18,86 +19,100 @@ Sends daily multiple choice quiz questions via SMS, generated automatically from
 
 ### 1. Install dependencies
 ```bash
-py -3.14 -m pip install anthropic flask twilio pypdf apscheduler python-dotenv
+py -3.14 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
 ```
 
 ### 2. Configure `.env`
 ```
 ANTHROPIC_API_KEY=your_anthropic_api_key
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_PHONE_NUMBER=+1XXXXXXXXXX
+CAMPAIGN_DISPLAY_NUMBER=+1 (XXX) XXX-XXXX
+NGROK_URL=https://your-domain.ngrok-free.dev
 NUM_QUESTIONS=10
-SEND_HOUR=9
+SEND_HOUR=7
 SEND_MINUTE=0
-PORT=5000
-SEND_ON_START=true
-IMAGE_FREQUENCY=0.3
+SEND_ON_START=false
 ```
 
 ### 3. Add recipients
-Edit `recipients.txt` — one phone number per line in +1XXXXXXXXXX format:
+`recipients.txt` has one `phone, first name` per line. Lines starting with `#` are ignored:
 ```
-+19783028985
-+12145581330
+# Format: +1XXXXXXXXXX, First Name
++15551234567, Emily
 ```
+New people can also join themselves by texting **START** to the number. They're added to this file automatically and asked for their first name. Only add people here directly if they've agreed to get the texts, because the campaign rules require consent.
 
-### 4. Add PDFs
-Drop any PDF study materials into the TextMe folder. The app currently reads:
+### 4. PDFs
+The app reads the PDFs listed in `PDF_PATHS` in `app.py`:
 - `part1.pdf`
 - `CriticalCare.pdf`
 - `Thoracic.pdf`
+
+To add a PDF, put it in the folder, add it to `PDF_PATHS`, delete `questions_cache.json`, and restart.
+
+### 5. Twilio
+1. The phone number must be in the Messaging Service linked to the approved A2P 10DLC campaign (**Messaging → Services → Sender Pool**).
+2. In that service, under **Integration → Incoming Messages**, choose **Send a webhook** and set the Request URL to `https://your-domain.ngrok-free.dev/webhook` (POST).
+3. Keep funds in the account. Twilio suspends the account when the balance runs out, and nothing can be sent until it's topped up.
 
 ---
 
 ## Running the App
 
-**Terminal 1 — start the app:**
-```bash
-cd C:\Users\Emily\PycharmProjects\TextMe
-py -3.14 app.py
-```
+Double-click `start_textme.bat`. It starts both ngrok and the app, minimized.
 
-**Terminal 2 — start ngrok (exposes app to internet for Twilio):**
+Or start them yourself in two terminals:
 ```bash
 ngrok http 5000
+.venv\Scripts\python.exe app.py
 ```
+
+The computer must stay on and awake for the daily send to go out and for replies to get answered.
 
 ---
 
-## Twilio Setup
+## Commands people can text
 
-1. Buy a toll-free number at twilio.com
-2. Go to Phone Numbers → your number → Messaging Configuration
-3. Set webhook URL to: `https://your-ngrok-url.ngrok-free.dev/webhook`
-4. Save configuration
-
----
-
-## Testing Locally (without SMS)
-
-Start a quiz session:
-```powershell
-(Invoke-WebRequest -Uri "http://localhost:5000/webhook" -Method POST -Body "From=+19783028985&Body=START" -UseBasicParsing).Content
-```
-
-Submit an answer:
-```powershell
-(Invoke-WebRequest -Uri "http://localhost:5000/webhook" -Method POST -Body "From=+19783028985&Body=A" -UseBasicParsing).Content
-```
-
----
-
-## Commands
-
-| User texts | App does |
+| Text | What happens |
 |---|---|
-| `START` | Sends a random question immediately |
-| `A` / `B` / `C` / `D` | Evaluates answer, sends feedback |
+| `START` | Opts in. A new number is added to the daily list and asked for a first name, then gets a first question. |
+| `A` / `B` / `C` / `D` | Answers the current question. The reply says right or wrong and explains. |
+| `QUIZ` | Sends an extra question right away (random, so it may be one they've had). |
+| `FLAG` (optionally `FLAG <note>`) | Flags their most recent question as possibly wrong. Shows up on the report. |
+| `BOARD` | Shows the leaderboard (top 5 by correct answers). |
+| `BOARD ON` / `BOARD OFF` | Joins or leaves the leaderboard. Only people who join appear, by first name. |
+| `HELP` | Lists the commands. |
+| `STOP` | Unsubscribes. Twilio sends the confirmation, and the app stops sending daily questions to them. |
 
-Daily questions are sent automatically at the time set in `SEND_HOUR` and `SEND_MINUTE`.
+---
 
-When `SEND_ON_START=true`, the app also sends a question to every recipient automatically as soon as it starts up and finishes loading questions (~30 seconds after launch). Set `SEND_ON_START=false` to disable this.
+## Report
+
+Open **http://localhost:5000/report** on the computer running the app. It shows:
+- totals, plus each person's questions sent, answered, right, wrong, and accuracy
+- 🚩 flagged questions, with notes
+- the hardest questions first
+- recent activity, and a CSV download of every event
+
+The report shows phone numbers, so it only opens on this computer. To view it from elsewhere, set `REPORT_KEY` in `.env` and open `https://your-domain.ngrok-free.dev/report?key=<REPORT_KEY>`.
+
+To send today's question to everyone right now (from this computer):
+```powershell
+Invoke-WebRequest -Method POST http://localhost:5000/send-now -UseBasicParsing
+```
+
+---
+
+## Testing locally without texting
+
+`/webhook` rejects anything not signed by Twilio. To test it with `Invoke-WebRequest`, set `VALIDATE_TWILIO_SIGNATURE=false` in `.env`, restart the app, and turn it back on afterwards:
+```powershell
+(Invoke-WebRequest -Uri "http://localhost:5000/webhook" -Method POST -Body "From=+15550001111&Body=QUIZ" -UseBasicParsing).Content
+(Invoke-WebRequest -Uri "http://localhost:5000/webhook" -Method POST -Body "From=+15550001111&Body=A" -UseBasicParsing).Content
+```
 
 ---
 
@@ -107,16 +122,17 @@ When `SEND_ON_START=true`, the app also sends a question to every recipient auto
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Claude API key (required) |
 | `TWILIO_ACCOUNT_SID` | — | Twilio account SID (required) |
-| `TWILIO_AUTH_TOKEN` | — | Twilio auth token (required) |
-| `TWILIO_PHONE_NUMBER` | — | Your Twilio phone number |
-| `USE_WHATSAPP` | `false` | Set `true` to use WhatsApp sandbox |
-| `WHATSAPP_NUMBER` | — | WhatsApp sandbox number |
-| `NUM_QUESTIONS` | `10` | Number of questions to generate from PDFs |
-| `SEND_HOUR` | `9` | Hour to send daily questions (24h) |
-| `SEND_MINUTE` | `0` | Minute to send daily questions |
-| `SEND_ON_START` | `true` | Send questions to all recipients on app startup |
-| `IMAGE_FREQUENCY` | `1.0` | Fraction of questions to attach an image (0.0–1.0) |
-| `NGROK_URL` | — | Public ngrok URL for serving images |
+| `TWILIO_AUTH_TOKEN` | — | Twilio auth token (required; also used to check webhook signatures) |
+| `TWILIO_PHONE_NUMBER` | — | The registered Twilio number that sends the texts (required) |
+| `CAMPAIGN_DISPLAY_NUMBER` | — | Number shown on the opt-in/privacy/terms pages |
+| `NGROK_URL` | — | Public ngrok URL, used for images and signature checks (required) |
+| `NUM_QUESTIONS` | `10` | Questions per batch |
+| `SEND_HOUR` / `SEND_MINUTE` | `9` / `0` | Daily send time (24h, this computer's time zone) |
+| `SEND_ON_START` | `true` | Send to everyone as soon as the app starts. Set to `false` to avoid surprise texts on restart. |
+| `IMAGE_FREQUENCY` | `1.0` | Chance (0–1) a question that has a matching image is sent with it |
+| `REPORT_KEY` | — | Lets the report open through ngrok with `?key=` |
+| `VALIDATE_TWILIO_SIGNATURE` | `true` | Reject webhook requests not signed by Twilio |
+| `USE_WHATSAPP` / `WHATSAPP_NUMBER` | `false` | Legacy WhatsApp sandbox option |
 | `PORT` | `5000` | Flask server port |
 
 ---
@@ -125,9 +141,12 @@ When `SEND_ON_START=true`, the app also sends a question to every recipient auto
 
 | File | Purpose |
 |---|---|
-| `app.py` | Main application |
-| `recipients.txt` | Phone numbers and names for daily questions |
-| `progress.json` | Tracks which question each recipient is on (auto-created) |
-| `.env` | API keys and settings (never commit this) |
-| `images/` | Extracted PDF images, served at `/images/<filename>` |
-| `*.pdf` | Study material PDFs |
+| `app.py` | The app |
+| `recipients.txt` | Daily list: `phone, first name` |
+| `questions_cache.json` | Generated questions and their images. Delete it to start a fresh set. |
+| `progress.json` | Which question each person is on |
+| `events.jsonl` | Log of every opt-in, send, answer, flag, and opt-out (not committed: has phone numbers) |
+| `images/` | Images pulled from the PDFs, served at `/images/<filename>` |
+| `How_TextMe_Works.pdf` / `.html` | Diagram of the system, and its source |
+| `start_textme.bat` | Starts ngrok and the app |
+| `.env` | Keys and settings (never commit) |

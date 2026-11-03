@@ -11,6 +11,7 @@ import time
 from flask import Flask, request, Response, send_from_directory
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client as TwilioClient
+from twilio.request_validator import RequestValidator
 from apscheduler.schedulers.background import BackgroundScheduler
 import anthropic
 from pypdf import PdfReader
@@ -43,6 +44,7 @@ QUESTIONS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 PREVIOUS_QUESTIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "questions_cache_previous.json")
 EVENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "events.jsonl")
 REPORT_KEY = os.getenv("REPORT_KEY", "")
+VALIDATE_TWILIO_SIGNATURE = os.getenv("VALIDATE_TWILIO_SIGNATURE", "true").lower() == "true"
 IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
 NGROK_URL = os.getenv("NGROK_URL", "").rstrip("/")
 IMAGE_FREQUENCY = float(os.getenv("IMAGE_FREQUENCY", "1.0"))
@@ -79,6 +81,27 @@ def load_recipients() -> dict:
             else:
                 result[line] = ""
     return result
+
+
+_recipients_lock = threading.Lock()
+
+
+def save_recipient(phone: str, name: str) -> None:
+    """Add a recipient, or update their name, keeping comments and order."""
+    with _recipients_lock:
+        lines = []
+        if os.path.exists(RECIPIENTS_FILE):
+            with open(RECIPIENTS_FILE) as f:
+                lines = f.read().splitlines()
+        new_line = f"{phone}, {name}".rstrip(", ") if name else phone
+        for i, line in enumerate(lines):
+            if not line.strip().startswith("#") and line.split(",")[0].strip() == phone:
+                lines[i] = new_line
+                break
+        else:
+            lines.append(new_line)
+        with open(RECIPIENTS_FILE, "w") as f:
+            f.write("\n".join(lines) + "\n")
 
 
 def load_progress() -> dict:
@@ -150,6 +173,34 @@ def restore_sessions() -> None:
     if pending:
         names = ", ".join(s["name"] or phone for phone, s in pending.items())
         print(f"[Quiz] Restored {len(pending)} unanswered question(s): {names}")
+
+
+def latest_of(phone: str, kinds: tuple) -> str | None:
+    """The most recent of the given event kinds for this phone, if any."""
+    latest = None
+    for e in load_events():
+        if e["phone"] == phone and e["event"] in kinds:
+            latest = e["event"]
+    return latest
+
+
+def awaiting_name(phone: str) -> bool:
+    return latest_of(phone, ("joined", "named")) == "joined"
+
+
+def on_leaderboard(phone: str) -> bool:
+    return latest_of(phone, ("board_on", "board_off")) == "board_on"
+
+
+def last_question_for(phone: str) -> dict | None:
+    if phone in sessions:
+        return sessions[phone]["question"]
+    by_text = {q["question"]: q for q in _questions or []}
+    last = None
+    for e in load_events():
+        if e["phone"] == phone and e["event"] == "question_sent":
+            last = e.get("q") or by_text.get(e["question"]) or last
+    return last
 
 
 def opted_out_numbers() -> set:
@@ -508,6 +559,11 @@ CAMPAIGN_NUMBER = os.getenv("CAMPAIGN_DISPLAY_NUMBER", "[number pending Twilio r
 OPT_IN_KEYWORDS = ("START", "YES", "UNSTOP")
 OPT_OUT_KEYWORDS = ("STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT")
 ON_DEMAND_KEYWORDS = ("QUIZ", "BEGIN")
+# First words that are commands, so they're never mistaken for a new subscriber's name
+ALL_KEYWORDS = OPT_IN_KEYWORDS + OPT_OUT_KEYWORDS + ON_DEMAND_KEYWORDS + (
+    "HELP", "FLAG", "BOARD", "LEADERBOARD", "RANK", "A", "B", "C", "D",
+)
+LEADERBOARD_SIZE = 5
 
 PAGE_STYLE = """
   body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: #333; }
@@ -679,7 +735,21 @@ def build_report(events: list) -> tuple[list, list]:
 EVENT_LABELS = {
     "opt_in": "Opted in", "opt_out": "Opted out",
     "question_sent": "Question sent", "answer": "Answered",
+    "joined": "Joined (new number)", "named": "Gave name", "flag": "🚩 Flagged",
+    "board_on": "Joined leaderboard", "board_off": "Left leaderboard",
 }
+
+
+def build_flags(events: list) -> list:
+    flags: dict = {}
+    for e in events:
+        if e["event"] == "flag":
+            f = flags.setdefault(e["question"], {"question": e["question"], "count": 0, "notes": [], "last": ""})
+            f["count"] += 1
+            f["last"] = e["ts"]
+            if e.get("note"):
+                f["notes"].append(f"{e.get('name') or e['phone']}: {e['note']}")
+    return sorted(flags.values(), key=lambda f: (f["count"], f["last"]), reverse=True)
 
 
 @app.route("/report")
@@ -719,7 +789,17 @@ def report_page():
             return f"Answered {esc(e['answer'])} — {mark}<br><small>{esc(e['question'])}</small>"
         if e["event"] == "question_sent":
             return f"{esc(e.get('source', ''))}<br><small>{esc(e['question'])}</small>"
-        return f"Keyword: {esc(e.get('keyword', ''))}"
+        if e["event"] == "flag":
+            return f"{esc(e.get('note') or 'No note')}<br><small>{esc(e['question'])}</small>"
+        if e.get("keyword"):
+            return f"Keyword: {esc(e['keyword'])}"
+        return ""
+
+    flags_html = "".join(
+        f"<tr><td>{esc(f['question'])}</td><td class=n>{f['count']}</td>"
+        f"<td>{'<br>'.join(esc(n) for n in f['notes']) or '—'}</td><td>{esc(f['last'])}</td></tr>"
+        for f in build_flags(events)
+    ) or "<tr><td colspan=4 class=empty>No flagged questions.</td></tr>"
 
     log_html = "".join(
         f"<tr><td>{esc(e['ts'])}</td><td>{esc(e.get('name') or e['phone'])}</td>"
@@ -765,6 +845,12 @@ def report_page():
     {people_html}
   </table></div>
 
+  <h2>🚩 Flagged questions</h2>
+  <div class="scroll"><table>
+    <tr><th>Question</th><th>Flags</th><th>Notes</th><th>Last flagged</th></tr>
+    {flags_html}
+  </table></div>
+
   <h2>Questions (hardest first)</h2>
   <div class="scroll"><table>
     <tr><th>Question</th><th>Answered</th><th>Right</th><th>Accuracy</th></tr>
@@ -794,7 +880,7 @@ def report_csv():
         return Response("Not found", status=404)
 
     out = io.StringIO()
-    fields = ["ts", "event", "phone", "name", "keyword", "source", "question", "answer", "correct_answer", "is_correct"]
+    fields = ["ts", "event", "phone", "name", "keyword", "source", "question", "answer", "correct_answer", "is_correct", "note"]
     writer = csv.DictWriter(out, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(load_events())
@@ -809,46 +895,142 @@ def serve_image(filename):
     return send_from_directory(IMAGE_DIR, filename)
 
 
+def twilio_request_valid() -> bool:
+    if not VALIDATE_TWILIO_SIGNATURE:
+        return True
+    # Twilio signs the public URL it called, not the localhost URL Flask sees.
+    url = f"{NGROK_URL}{request.full_path.rstrip('?')}" if NGROK_URL else request.url
+    return RequestValidator(TWILIO_AUTH_TOKEN).validate(
+        url, request.form.to_dict(), request.headers.get("X-Twilio-Signature", "")
+    )
+
+
+def clean_name(raw: str) -> str | None:
+    words = raw.replace(".", " ").replace(",", " ").replace("!", " ").split()[:2]
+    name = " ".join(words)[:30]
+    if len(name) < 2 or any(ch.isdigit() for ch in name):
+        return None
+    return name.title() if name.islower() or name.isupper() else name
+
+
+def send_question_reply(resp: MessagingResponse, phone: str, name: str, intro: str) -> None:
+    if _questions is None:
+        resp.message("Still loading, try again in a moment! ⏳")
+        return
+    q = random.choice(_questions)
+    sessions[phone] = {"question": q, "name": name}
+    log_event("question_sent", phone, name, source="on_demand", question=q["question"], q=q)
+    msg = resp.message(f"{intro}\n\n{format_question(q)}")
+    image_url = get_image_url_for_question(q)
+    if image_url:
+        msg.media(image_url)
+
+
+def leaderboard_text(phone: str) -> str:
+    people, _ = build_report(load_events())
+    board = [p for p in people if on_leaderboard(p["phone"]) and p["answered"]]
+    board.sort(key=lambda p: (p["correct"], p["accuracy"] or 0), reverse=True)
+
+    lines = ["🏆 Leaderboard (correct answers)"]
+    for rank, p in enumerate(board[:LEADERBOARD_SIZE], 1):
+        lines.append(f"{rank}. {p['name'] or 'Someone'} - {p['correct']} ({p['accuracy']}%)")
+    if not board:
+        lines.append("No one is on the board yet.")
+
+    my_rank = next((i for i, p in enumerate(board, 1) if p["phone"] == phone), None)
+    if my_rank:
+        lines.append(f"\nYou're #{my_rank} of {len(board)}. Text BOARD OFF to leave.")
+    elif on_leaderboard(phone):
+        lines.append("\nYou'll show up once you answer a question.")
+    else:
+        lines.append("\nText BOARD ON to join (shows your first name and score).")
+    return "\n".join(lines)
+
+
+def reply(resp: MessagingResponse) -> Response:
+    return Response(str(resp), mimetype="text/xml")
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    payload = request.get_json(silent=True) if request.is_json else {}
+    if not twilio_request_valid():
+        print(f"[Webhook] Rejected request with a bad Twilio signature from {request.remote_addr}")
+        return Response("Forbidden", status=403)
 
-    from_number = strip_whatsapp(
-        request.form.get("From")
-        or request.form.get("from")
-        or request.form.get("originator")
-        or payload.get("originator")
-        or payload.get("from")
-        or payload.get("From")
-        or ""
-    )
-    body = (
-        request.form.get("Body")
-        or request.form.get("body")
-        or request.form.get("text")
-        or payload.get("body")
-        or payload.get("text")
-        or payload.get("Body")
-        or ""
-    ).strip().upper()
-
+    from_number = strip_whatsapp(request.form.get("From", ""))
+    raw_body = request.form.get("Body", "").strip()
+    body = raw_body.upper()
     resp = MessagingResponse()
+    name = load_recipients().get(from_number, "")
 
     # ── Opt-out (Twilio sends the STOP reply itself; we just record it) ───────
     if body in OPT_OUT_KEYWORDS:
         sessions.pop(from_number, None)
-        log_event("opt_out", from_number, load_recipients().get(from_number, ""), keyword=body)
-        return Response(str(resp), mimetype="text/xml")
+        log_event("opt_out", from_number, name, keyword=body)
+        return reply(resp)
+
+    # ── New subscriber replying with their first name ─────────────────────────
+    if (awaiting_name(from_number) and from_number not in sessions
+            and body.split(" ")[0] not in ALL_KEYWORDS):
+        new_name = clean_name(raw_body)
+        if not new_name:
+            resp.message("Just reply with your first name 🙂")
+            return reply(resp)
+        save_recipient(from_number, new_name)
+        log_event("named", from_number, new_name)
+        send_question_reply(
+            resp, from_number, new_name,
+            f"Thanks, {new_name}! You'll get a new question every day at "
+            f"{SEND_HOUR % 12 or 12}:{SEND_MINUTE:02d} {'AM' if SEND_HOUR < 12 else 'PM'}. "
+            "Here's your first one:",
+        )
+        return reply(resp)
+
+    # ── HELP ─────────────────────────────────────────────────────────────────
+    if body == "HELP":
+        resp.message(
+            f"{BRAND_NAME}: Daily medical quiz via SMS. Text QUIZ for a question now, "
+            "FLAG to report a question that seems wrong, BOARD for the leaderboard. "
+            "Msg & data rates may apply, ~1 msg/day. Reply STOP to unsubscribe."
+        )
+        return reply(resp)
+
+    # ── FLAG a question that seems wrong ──────────────────────────────────────
+    if body.split(" ")[0] == "FLAG":
+        q = last_question_for(from_number)
+        if not q:
+            resp.message("There's no question to flag yet.")
+            return reply(resp)
+        note = raw_body[4:].strip(" :-")
+        log_event("flag", from_number, name, question=q["question"], note=note)
+        resp.message(
+            f"🚩 Thanks{', ' + name if name else ''}! That question is flagged for review."
+            + ("\n\nYou can still answer it with A, B, C, or D." if from_number in sessions else "")
+        )
+        return reply(resp)
+
+    # ── Leaderboard ──────────────────────────────────────────────────────────
+    if body in ("BOARD ON", "LEADERBOARD ON"):
+        log_event("board_on", from_number, name)
+        resp.message("You're on the leaderboard!\n\n" + leaderboard_text(from_number))
+        return reply(resp)
+    if body in ("BOARD OFF", "LEADERBOARD OFF"):
+        log_event("board_off", from_number, name)
+        resp.message("You've been removed from the leaderboard. Text BOARD ON to rejoin.")
+        return reply(resp)
+    if body in ("BOARD", "LEADERBOARD", "RANK"):
+        resp.message(leaderboard_text(from_number))
+        return reply(resp)
 
     # ── Answer to a pending question ────────────────────────────────────────
     if from_number in sessions:
         q = sessions[from_number]["question"]
-        name = sessions[from_number].get("name", "")
+        name = sessions[from_number].get("name", "") or name
         thanks = f"Thanks for your answer, {name}!\n\n" if name else "Thanks for your answer!\n\n"
 
         if body not in ("A", "B", "C", "D"):
             resp.message("Please reply with A, B, C, or D.")
-            return Response(str(resp), mimetype="text/xml")
+            return reply(resp)
 
         correct = q["correct"]
         if body == correct:
@@ -859,6 +1041,7 @@ def webhook():
                 f"{correct}) {q['options'][correct]}.\n\n"
                 f"{q['explanation']}"
             )
+        feedback += "\n\nThink this question is wrong? Reply FLAG."
 
         log_event(
             "answer", from_number, name,
@@ -867,42 +1050,36 @@ def webhook():
         )
         del sessions[from_number]
         resp.message(feedback)
-        return Response(str(resp), mimetype="text/xml")
+        return reply(resp)
 
-    # ── HELP ─────────────────────────────────────────────────────────────────
-    if body == "HELP":
+    # ── Opt-in ───────────────────────────────────────────────────────────────
+    if body in OPT_IN_KEYWORDS:
+        log_event("opt_in", from_number, name, keyword=body)
         resp.message(
-            f"{BRAND_NAME}: Daily medical quiz via SMS. Msg & data rates may apply, "
-            "~1 msg/day. Reply STOP to unsubscribe."
+            f"{BRAND_NAME}: You are now opted-in to receive daily medical quiz "
+            "questions via SMS. For help, reply HELP. To opt out at any time, "
+            "reply STOP. Msg & data rates may apply."
         )
-        return Response(str(resp), mimetype="text/xml")
-
-    # ── Opt-in (new subscriber) or on-demand question request ─────────────────
-    if body in OPT_IN_KEYWORDS or body in ON_DEMAND_KEYWORDS:
-        recipients = load_recipients()
-        name = recipients.get(from_number, "")
-        if body in OPT_IN_KEYWORDS:
-            log_event("opt_in", from_number, name, keyword=body)
-            resp.message(
-                f"{BRAND_NAME}: You are now opted-in to receive daily medical quiz "
-                "questions via SMS. For help, reply HELP. To opt out at any time, "
-                "reply STOP. Msg & data rates may apply."
-            )
-        if _questions is None:
-            resp.message("Still loading, try again in a moment! ⏳")
+        if from_number not in load_recipients():
+            # New number: add them to the daily list, then get their name.
+            save_recipient(from_number, "")
+            log_event("joined", from_number)
+            resp.message("What's your first name? Reply with it and we'll send your first question.")
         else:
-            q = random.choice(_questions)
-            sessions[from_number] = {"question": q, "name": name}
-            log_event("question_sent", from_number, name, source="on_demand", question=q["question"], q=q)
-            msg = resp.message(f"📚 Here's a question!\n\n{format_question(q)}")
-            image_url = get_image_url_for_question(q)
-            if image_url:
-                msg.media(image_url)
-        return Response(str(resp), mimetype="text/xml")
+            send_question_reply(resp, from_number, name, "📚 Here's a question!")
+        return reply(resp)
+
+    # ── On-demand question ───────────────────────────────────────────────────
+    if body in ON_DEMAND_KEYWORDS:
+        send_question_reply(resp, from_number, name, "📚 Here's a question!")
+        return reply(resp)
 
     # ── Default ───────────────────────────────────────────────────────────────
-    resp.message("📚 You'll get a daily question automatically!\nText START for one right now.")
-    return Response(str(resp), mimetype="text/xml")
+    resp.message(
+        "📚 You'll get a daily question automatically!\n"
+        "Text QUIZ for one now, BOARD for the leaderboard, or HELP for more."
+    )
+    return reply(resp)
 
 
 # ---------------------------------------------------------------------------
