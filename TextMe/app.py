@@ -879,10 +879,42 @@ def report_page():
 </html>"""
 
 
+def send_picture_test() -> str:
+    """Send everyone a question with an approved picture, without advancing their daily order."""
+    pool = [q for q in _questions or [] if q.get("image")]
+    if os.path.exists(PREVIOUS_QUESTIONS_FILE):
+        with open(PREVIOUS_QUESTIONS_FILE) as f:
+            pool += [q for q in json.load(f)["questions"] if q.get("image")]
+    if not pool or not NGROK_URL:
+        return "No questions with an approved picture."
+
+    opted_out = opted_out_numbers()
+    sent = []
+    for phone, name in load_recipients().items():
+        if phone in opted_out:
+            continue
+        q = random.choice(pool)
+        greeting = f"Hi {name}! " if name else ""
+        try:
+            twilio.messages.create(
+                to=phone, from_=TWILIO_PHONE_NUMBER,
+                body=f"📚 {greeting}Picture question!\n\n{format_question(q)}",
+                media_url=[f"{NGROK_URL}/images/{q['image']}"],
+            )
+            sessions[phone] = {"question": q, "name": name}
+            log_event("question_sent", phone, name, source="picture_test", question=q["question"], q=q)
+            sent.append(name or phone)
+        except Exception as exc:
+            print(f"[Picture test] Failed to send to {phone}: {exc}")
+    return f"Sent a picture question to: {', '.join(sent) or 'nobody'}"
+
+
 @app.route("/send-now", methods=["POST"])
 def send_now():
     if not report_allowed():
         return Response("Not found", status=404)
+    if request.args.get("picture"):
+        return send_picture_test()
     send_daily_questions()
     return "Sent — see /report"
 
