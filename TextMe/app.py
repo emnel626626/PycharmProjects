@@ -795,6 +795,12 @@ def report_page():
             return f"Keyword: {esc(e['keyword'])}"
         return ""
 
+    board_html = "".join(
+        f"<tr><td class=n>{rank}</td><td>{esc(p['name']) or 'Someone'}</td>"
+        f"<td class=n>{p['correct']}</td><td class=n>{p['answered']}</td><td class=n>{p['accuracy']}%</td></tr>"
+        for rank, p in enumerate(leaderboard(people), 1)
+    ) or "<tr><td colspan=5 class=empty>No one has joined yet. People text BOARD ON to join.</td></tr>"
+
     flags_html = "".join(
         f"<tr><td>{esc(f['question'])}</td><td class=n>{f['count']}</td>"
         f"<td>{'<br>'.join(esc(n) for n in f['notes']) or '—'}</td><td>{esc(f['last'])}</td></tr>"
@@ -843,6 +849,13 @@ def report_page():
     <tr><th>Name</th><th>Phone</th><th>Status</th><th>Opted in</th><th>Sent</th><th>Answered</th>
         <th>Right</th><th>Wrong</th><th>Accuracy</th><th>Last activity</th></tr>
     {people_html}
+  </table></div>
+
+  <h2>🏆 Leaderboard</h2>
+  <p><small>Only people who texted BOARD ON. They can see the top {LEADERBOARD_SIZE} by texting BOARD.</small></p>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>Name</th><th>Correct</th><th>Answered</th><th>Accuracy</th></tr>
+    {board_html}
   </table></div>
 
   <h2>🚩 Flagged questions</h2>
@@ -926,10 +939,15 @@ def send_question_reply(resp: MessagingResponse, phone: str, name: str, intro: s
         msg.media(image_url)
 
 
+def leaderboard(people: list) -> list:
+    """People who opted onto the board and have answered, best first."""
+    board = [p for p in people if on_leaderboard(p["phone"]) and p["answered"]]
+    return sorted(board, key=lambda p: (p["correct"], p["accuracy"] or 0), reverse=True)
+
+
 def leaderboard_text(phone: str) -> str:
     people, _ = build_report(load_events())
-    board = [p for p in people if on_leaderboard(p["phone"]) and p["answered"]]
-    board.sort(key=lambda p: (p["correct"], p["accuracy"] or 0), reverse=True)
+    board = leaderboard(people)
 
     lines = ["🏆 Leaderboard (correct answers)"]
     for rank, p in enumerate(board[:LEADERBOARD_SIZE], 1):
