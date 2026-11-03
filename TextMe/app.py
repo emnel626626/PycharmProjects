@@ -189,7 +189,8 @@ def awaiting_name(phone: str) -> bool:
 
 
 def on_leaderboard(phone: str) -> bool:
-    return latest_of(phone, ("board_on", "board_off")) == "board_on"
+    # Everyone is on the board unless they texted BOARD OFF.
+    return latest_of(phone, ("board_on", "board_off")) != "board_off"
 
 
 def last_question_for(phone: str) -> dict | None:
@@ -799,7 +800,7 @@ def report_page():
         f"<tr><td class=n>{rank}</td><td>{esc(p['name']) or 'Someone'}</td>"
         f"<td class=n>{p['correct']}</td><td class=n>{p['answered']}</td><td class=n>{p['accuracy']}%</td></tr>"
         for rank, p in enumerate(leaderboard(people), 1)
-    ) or "<tr><td colspan=5 class=empty>No one has joined yet. People text BOARD ON to join.</td></tr>"
+    ) or "<tr><td colspan=5 class=empty>No answers yet.</td></tr>"
 
     flags_html = "".join(
         f"<tr><td>{esc(f['question'])}</td><td class=n>{f['count']}</td>"
@@ -852,7 +853,7 @@ def report_page():
   </table></div>
 
   <h2>🏆 Leaderboard</h2>
-  <p><small>Only people who texted BOARD ON. They can see the top {LEADERBOARD_SIZE} by texting BOARD.</small></p>
+  <p><small>Everyone is included unless they texted BOARD OFF. They can see the top {LEADERBOARD_SIZE} by texting BOARD.</small></p>
   <div class="scroll"><table>
     <tr><th>#</th><th>Name</th><th>Correct</th><th>Answered</th><th>Accuracy</th></tr>
     {board_html}
@@ -972,8 +973,8 @@ def send_question_reply(resp: MessagingResponse, phone: str, name: str, intro: s
 
 
 def leaderboard(people: list) -> list:
-    """People who opted onto the board and have answered, best first."""
-    board = [p for p in people if on_leaderboard(p["phone"]) and p["answered"]]
+    """Everyone who has answered and hasn't left the board or opted out, best first."""
+    board = [p for p in people if on_leaderboard(p["phone"]) and p["answered"] and p["status"] != "Opted out"]
     return sorted(board, key=lambda p: (p["correct"], p["accuracy"] or 0), reverse=True)
 
 
@@ -993,7 +994,7 @@ def leaderboard_text(phone: str) -> str:
     elif on_leaderboard(phone):
         lines.append("\nYou'll show up once you answer a question.")
     else:
-        lines.append("\nText BOARD ON to join (shows your first name and score).")
+        lines.append("\nYou're hidden from the board. Text BOARD ON to rejoin.")
     return "\n".join(lines)
 
 

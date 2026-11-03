@@ -83,7 +83,7 @@ The computer must stay on and awake for the daily send to go out and for replies
 | `QUIZ` | Sends an extra question right away (random, so it may be one they've had). |
 | `FLAG` (optionally `FLAG <note>`) | Flags their most recent question as possibly wrong. Shows up on the report. |
 | `BOARD` | Shows the leaderboard (top 5 by correct answers). |
-| `BOARD ON` / `BOARD OFF` | Joins or leaves the leaderboard. Only people who join appear, by first name. |
+| `BOARD OFF` / `BOARD ON` | Hides them from the leaderboard, or adds them back. Everyone is on it by default, by first name. |
 | `HELP` | Lists the commands. |
 | `STOP` | Unsubscribes. Twilio sends the confirmation, and the app stops sending daily questions to them. |
 
