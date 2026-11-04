@@ -1,6 +1,6 @@
 # TextMe Quiz App (Text-The-Resident)
 
-Texts a daily multiple-choice question to everyone on the list, generated from PDF study materials by Claude. People reply A, B, C, or D and get instant feedback with an explanation. Sending and receiving texts goes through Twilio on a registered A2P 10DLC campaign.
+Texts a daily ABSITE-style General Surgery question to everyone on the list, written by Claude. People reply A, B, C, or D and get instant feedback with an explanation. Sending and receiving texts goes through Twilio on a registered A2P 10DLC campaign.
 
 See [How_TextMe_Works.pdf](How_TextMe_Works.pdf) for a diagram.
 
@@ -8,7 +8,7 @@ See [How_TextMe_Works.pdf](How_TextMe_Works.pdf) for a diagram.
 
 ## How It Works
 
-1. **Questions:** on first start, the app reads the PDFs and asks Claude to write `NUM_QUESTIONS` questions, split across the PDFs by size and sampled evenly through each one. Claude also checks each question's page image and keeps it only if it fits the question without giving away the answer. Everything is cached in `questions_cache.json`.
+1. **Questions:** on first start, Claude (`claude-opus-5-5`) writes `NUM_QUESTIONS` single-best-answer questions. Topics are drawn from the 44 categories of the [ABS content outline for the ABSITE](https://www.absurgery.org/wp-content/uploads/2023/01/GS-ITE.pdf), weighted like the exam (Trauma 6%, Critical Care 5%, Breast 4%, …). A second Claude pass then answers each question cold. A question is kept only if that pass agrees with the answer key, finds exactly one defensible answer, and is highly confident. The set is cached in `questions_cache.json`.
 2. **Daily send:** every day at `SEND_HOUR:SEND_MINUTE`, everyone in `recipients.txt` gets their next question (anyone who texted STOP is skipped). When someone reaches the end of the list, Claude writes a new batch that doesn't repeat earlier questions, so nobody gets a repeat.
 3. **Replies:** Twilio forwards incoming texts through ngrok to `/webhook`. The app checks Twilio's signature, then handles the answer or command.
 4. **Report:** every opt-in, question sent, answer, flag, and opt-out is logged to `events.jsonl` and summarized at `/report`.
@@ -45,13 +45,8 @@ SEND_ON_START=false
 ```
 New people can also join themselves by texting **START** to the number. They're added to this file automatically and asked for their first name. Only add people here directly if they've agreed to get the texts, because the campaign rules require consent.
 
-### 4. PDFs
-The app reads the PDFs listed in `PDF_PATHS` in `app.py`:
-- `part1.pdf`
-- `CriticalCare.pdf`
-- `Thoracic.pdf`
-
-To add a PDF, put it in the folder, add it to `PDF_PATHS`, delete `questions_cache.json`, and restart.
+### 4. Topics
+The topic list and weights are `ABSITE_TOPICS` in `app.py`. To start over with a fresh set of questions, delete `questions_cache.json` and restart. The old Thoracic set (generated from PDFs) is saved as `questions_cache_thoracic.json`.
 
 ### 5. Twilio
 1. The phone number must be in the Messaging Service linked to the approved A2P 10DLC campaign (**Messaging → Services → Sender Pool**).
@@ -125,8 +120,8 @@ Invoke-WebRequest -Method POST http://localhost:5000/send-now -UseBasicParsing
 | `TWILIO_AUTH_TOKEN` | — | Twilio auth token (required; also used to check webhook signatures) |
 | `TWILIO_PHONE_NUMBER` | — | The registered Twilio number that sends the texts (required) |
 | `CAMPAIGN_DISPLAY_NUMBER` | — | Number shown on the opt-in/privacy/terms pages |
-| `NGROK_URL` | — | Public ngrok URL, used for images and signature checks (required) |
-| `NUM_QUESTIONS` | `10` | Questions per batch |
+| `NGROK_URL` | — | Public ngrok URL, used for signature checks and images (required) |
+| `NUM_QUESTIONS` | `10` | Questions per batch (each batch also runs the re-check, so larger batches take longer) |
 | `SEND_HOUR` / `SEND_MINUTE` | `9` / `0` | Daily send time (24h, this computer's time zone) |
 | `SEND_ON_START` | `true` | Send to everyone as soon as the app starts. Set to `false` to avoid surprise texts on restart. |
 | `IMAGE_FREQUENCY` | `1.0` | Chance (0–1) a question that has a matching image is sent with it |
@@ -143,10 +138,10 @@ Invoke-WebRequest -Method POST http://localhost:5000/send-now -UseBasicParsing
 |---|---|
 | `app.py` | The app |
 | `recipients.txt` | Daily list: `phone, first name` |
-| `questions_cache.json` | Generated questions and their images. Delete it to start a fresh set. |
+| `questions_cache.json` | Generated questions. Delete it to start a fresh set. |
 | `progress.json` | Which question each person is on |
 | `events.jsonl` | Log of every opt-in, send, answer, flag, and opt-out (not committed: has phone numbers) |
-| `images/` | Images pulled from the PDFs, served at `/images/<filename>` |
+| `images/` | Images from the old Thoracic PDFs (unused by General Surgery), served at `/images/<filename>` |
 | `How_TextMe_Works.pdf` / `.html` | Diagram of the system, and its source |
 | `start_textme.bat` | Starts ngrok and the app |
 | `.env` | Keys and settings (never commit) |

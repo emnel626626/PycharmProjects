@@ -1,12 +1,12 @@
 import os
 import io
-import base64
 import csv
 import html
 import json
 import threading
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask, request, Response, send_from_directory
 from twilio.twiml.messaging_response import MessagingResponse
@@ -14,7 +14,6 @@ from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
 from apscheduler.schedulers.background import BackgroundScheduler
 import anthropic
-from pypdf import PdfReader
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -22,12 +21,6 @@ load_dotenv()
 app = Flask(__name__)
 
 # Config
-PDF_DIR = os.getenv("PDF_DIR", r"C:\Users\Emily\PycharmProjects\TextMe")
-PDF_PATHS = [
-    os.path.join(PDF_DIR, "part1.pdf"),
-    os.path.join(PDF_DIR, "CriticalCare.pdf"),
-    os.path.join(PDF_DIR, "Thoracic.pdf"),
-]
 NUM_QUESTIONS = int(os.getenv("NUM_QUESTIONS", "10"))
 SEND_HOUR = int(os.getenv("SEND_HOUR", "9"))
 SEND_MINUTE = int(os.getenv("SEND_MINUTE", "0"))
@@ -214,177 +207,202 @@ def opted_out_numbers() -> set:
 
 
 # ---------------------------------------------------------------------------
-# PDF extraction — text + images tracked per page
+# Question generation — General Surgery, weighted by the ABSITE content outline
 # ---------------------------------------------------------------------------
 
-def extract_pdf_content() -> dict:
-    """Extract text from all PDFs, tagging each page with a unique ID.
-    Also populates _page_image_map with images per page.
-    Returns {pdf_name: [tagged page text, ...]} for question generation.
-    """
-    global _page_image_map
-    _page_image_map = {}
-    pages_by_pdf = {}
+# Categories and target weights (%) from the ABS "General Surgery Content Outline
+# for the ABSITE" (updated 01/2021): https://www.absurgery.org/wp-content/uploads/2023/01/GS-ITE.pdf
+ABSITE_TOPICS = [
+    ("Abdomen - General", 3), ("Abdomen - Hernia", 2.5), ("Abdomen - Biliary", 3.5),
+    ("Abdomen - Liver", 3.5), ("Abdomen - Pancreas", 3.5), ("Abdomen - Spleen", 1),
+    ("Esophagus", 2.5), ("Stomach", 3.5), ("Small Intestine", 3), ("Large Intestine", 3.5),
+    ("Anorectal", 2), ("Endoscopy", 2), ("Breast", 4), ("Endocrine", 4),
+    ("Skin and Soft Tissue", 3.5), ("Surgical Critical Care", 5), ("Trauma", 6),
+    ("Vascular - Arterial Disease", 2), ("Vascular - Venous", 1), ("Vascular - Access", 1),
+    ("Transplantation", 2), ("Thoracic Surgery", 2), ("Pediatric Surgery", 2),
+    ("Plastic Surgery", 2), ("Genitourinary", 1), ("Gynecology", 1), ("Head and Neck", 1),
+    ("Nervous System", 1),
+    ("Anesthesia", 1), ("Biostatistics and Evaluation of Evidence", 1),
+    ("Fluids, Electrolytes and Acid-Base Balance", 3.5),
+    ("Geriatric Surgery and End-of-Life Care", 1.5), ("Immunology", 1),
+    ("Infection and Antimicrobial Therapy", 3), ("Minimally Invasive Surgery - Principles", 1),
+    ("Nutrition and Metabolism", 2), ("Oncology and Tumor Biology", 2), ("Pharmacology", 1),
+    ("Preoperative Evaluation and Perioperative Care", 4),
+    ("Transfusion and Disorders of Coagulation", 2), ("Wound Healing", 1),
+    ("Radiology", 1), ("Outcomes", 2), ("Ethics", 1),
+]
 
-    for pdf_path in PDF_PATHS:
-        if not os.path.exists(pdf_path):
-            print(f"[Quiz] Warning: {pdf_path} not found, skipping.")
-            continue
+CLAUDE_MODEL = "claude-opus-5-5"
+# On a safety decline, the API retries the same request on another model instead of failing.
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+MAX_GENERATION_ROUNDS = 3
 
-        pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
-        reader = PdfReader(pdf_path)
-        num_pages = len(reader.pages)
-        print(f"[Quiz] {pdf_name}: {num_pages} pages")
-        pdf_start = time.monotonic()
-        text_parts = pages_by_pdf.setdefault(pdf_name, [])
+QUESTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string"},
+                    "question": {"type": "string"},
+                    "options": {
+                        "type": "object",
+                        "properties": {k: {"type": "string"} for k in "ABCD"},
+                        "required": list("ABCD"),
+                        "additionalProperties": False,
+                    },
+                    "correct": {"type": "string", "enum": list("ABCD")},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["topic", "question", "options", "correct", "explanation"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["questions"],
+    "additionalProperties": False,
+}
 
-        for page_num, page in enumerate(reader.pages):
-            page_start = time.monotonic()
-            page_key = f"{pdf_name}_p{page_num}"
-
-            # Text — tag it so Claude can reference the page
-            text = page.extract_text()
-            if text:
-                text_parts.append(f"[PAGE_ID:{page_key}]\n{text}")
-
-            # Images — save and map to this page
-            page_images = []
-            try:
-                for img_num, image in enumerate(page.images):
-                    if len(image.data) < 10_000:
-                        continue
-                    ext = image.name.split(".")[-1].lower()
-                    if ext not in ("png", "jpg", "jpeg"):
-                        ext = "png"
-                    filename = f"{pdf_name}_p{page_num}_{img_num}.{ext}"
-                    img_path = os.path.join(IMAGE_DIR, filename)
-                    if not os.path.exists(img_path):
-                        with open(img_path, "wb") as f:
-                            f.write(image.data)
-                    page_images.append(filename)
-            except Exception as e:
-                print(f"[Images] Error on {pdf_name} page {page_num}: {e}")
-
-            if page_images:
-                _page_image_map[page_key] = page_images
-
-            page_elapsed = time.monotonic() - page_start
-            if page_elapsed > 1.0 or page_num % 20 == 0:
-                print(f"[Quiz] {pdf_name} page {page_num}/{num_pages} took {page_elapsed:.1f}s"
-                      f"{' (SLOW)' if page_elapsed > 1.0 else ''}")
-
-        print(f"[Quiz] {pdf_name} done in {time.monotonic() - pdf_start:.1f}s")
-
-    total_images = sum(len(v) for v in _page_image_map.values())
-    print(f"[Images] {total_images} images mapped across {len(_page_image_map)} pages.")
-    return pages_by_pdf
-
-
-# ---------------------------------------------------------------------------
-# Question generation
-# ---------------------------------------------------------------------------
-
-MAX_CHARS_PER_PDF = 120_000
-MIN_QUESTIONS_PER_PDF = 2
+CHECK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "answer": {"type": "string", "enum": list("ABCD")},
+        "single_best_answer": {"type": "boolean"},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "issue": {"type": "string"},
+    },
+    "required": ["answer", "single_best_answer", "confidence", "issue"],
+    "additionalProperties": False,
+}
 
 
-def sample_pages(pages: list, max_chars: int) -> str:
-    """Keep evenly spaced pages so a long PDF is covered start to finish."""
-    total = sum(len(p) for p in pages)
-    if total > max_chars:
-        step = -(-total // max_chars)  # ceiling division
-        pages = pages[random.randrange(step)::step]
-    return "\n\n".join(pages)[:max_chars]
+def ask_claude_json(prompt: str, schema: dict, effort: str) -> dict:
+    # Streamed so long generations don't sit on an idle connection until it drops
+    with claude.beta.messages.stream(
+        model=CLAUDE_MODEL,
+        max_tokens=32000,
+        betas=[FALLBACK_BETA],
+        fallbacks="default",
+        output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+        messages=[{"role": "user", "content": prompt}],
+    ) as stream:
+        response = stream.get_final_message()
+    if response.stop_reason == "refusal":
+        raise RuntimeError(f"Claude declined the request ({getattr(response.stop_details, 'category', None)})")
+    if response.stop_reason == "max_tokens":
+        raise RuntimeError("Claude's reply was cut off (max_tokens)")
+    return json.loads(next(b.text for b in response.content if b.type == "text"))
 
 
-def split_questions(pages_by_pdf: dict, num_questions: int) -> dict:
-    """Split questions across PDFs by text size, with a minimum per PDF."""
-    sizes = {name: sum(len(p) for p in pages) for name, pages in pages_by_pdf.items() if pages}
-    base = min(MIN_QUESTIONS_PER_PDF, num_questions // max(len(sizes), 1))
-    counts = {name: base for name in sizes}
-    remaining = num_questions - base * len(sizes)
-    total = sum(sizes.values())
-    shares = {name: remaining * size / total for name, size in sizes.items()}
-    for name in sizes:
-        counts[name] += int(shares[name])
-    # Hand out what rounding left over to the largest fractional shares
-    leftover = num_questions - sum(counts.values())
-    for name in sorted(sizes, key=lambda n: shares[n] - int(shares[n]), reverse=True)[:leftover]:
-        counts[name] += 1
-    return counts
+def pick_topics(n: int) -> list:
+    """Weighted sample of ABSITE categories, without repeats until all have been used."""
+    picked = []
+    while len(picked) < n:
+        # Efraimidis-Spirakis weighted sampling without replacement
+        ranked = sorted(ABSITE_TOPICS, key=lambda t: random.random() ** (1 / t[1]), reverse=True)
+        picked += [name for name, _ in ranked[: n - len(picked)]]
+    return picked
 
 
-def interleave(groups: list) -> list:
-    """Round-robin merge so consecutive daily questions rotate between PDFs."""
-    merged = []
-    for i in range(max((len(g) for g in groups), default=0)):
-        merged.extend(g[i] for g in groups if i < len(g))
-    return merged
+def generate_questions(topics: list, avoid: list) -> list:
+    avoid_text = ""
+    if avoid:
+        avoid_text = (
+            "\nDo NOT repeat, reword, or test the same fact as any of these existing questions:\n"
+            + "\n".join(f"- {a}" for a in avoid) + "\n"
+        )
+    topic_list = "\n".join(f"{i}. {t}" for i, t in enumerate(topics, 1))
+    prompt = (
+        "You are writing practice questions for general surgery residents preparing for the "
+        "ABSITE (American Board of Surgery In-Training Examination).\n\n"
+        f"Write exactly {len(topics)} single-best-answer multiple-choice questions, one for each "
+        "ABSITE content category below, in this order. Set each question's \"topic\" to its category.\n\n"
+        f"{topic_list}\n\n"
+        "Match the ABSITE's style and level:\n"
+        "- About 4 in 5 should be clinical management vignettes (a patient, findings, what to do "
+        "next or the best treatment); the rest applied science (anatomy, physiology, pathophysiology).\n"
+        "- Test current, guideline-based practice that a chief resident is expected to know. Avoid "
+        "trivia, controversial areas, and anything that depends on an institution's preference.\n"
+        "- Exactly one option must be clearly best; the other three plausible but wrong.\n"
+        "- Spread the correct letter across A, B, C and D.\n\n"
+        "These are sent by text message, so keep them short:\n"
+        "- Question stem under 350 characters; each option under 90.\n"
+        "- Explanation under 450 characters: talk to the resident directly, say why the answer is "
+        "right and briefly why the main distractor is wrong. Don't refer to 'the question' or 'the text'.\n"
+        "- Plain text only, no markdown.\n"
+        f"{avoid_text}"
+    )
+    return ask_claude_json(prompt, QUESTION_SCHEMA, effort="high")["questions"]
 
 
-def generate_all_questions(pages_by_pdf: dict, num_questions: int, avoid: list | None = None) -> list:
-    groups = []
-    for name, count in split_questions(pages_by_pdf, num_questions).items():
-        if count == 0:
-            continue
-        print(f"[Quiz] Generating {count} questions from {name}...")
-        groups.append(generate_questions(sample_pages(pages_by_pdf[name], MAX_CHARS_PER_PDF), count, avoid))
-    return interleave(groups)
+def question_passes_check(q: dict) -> bool:
+    """Have Claude answer the question cold; keep it only if it agrees with the key and is unambiguous."""
+    options = "\n".join(f"{k}) {v}" for k, v in q["options"].items())
+    prompt = (
+        "You are an attending general surgeon reviewing an ABSITE practice question before it goes "
+        "to residents. Answer it yourself, then judge it.\n\n"
+        f"{q['question']}\n\n{options}\n\n"
+        "Give the single best answer. Set single_best_answer to false if more than one option could "
+        "reasonably be defended, the stem is missing something needed to decide, or it rests on "
+        "outdated practice. Set confidence to how sure you are of your answer under current "
+        "guidelines. Put any problem in issue (empty string if none)."
+    )
+    check = ask_claude_json(prompt, CHECK_SCHEMA, effort="high")
+    passed = check["answer"] == q["correct"] and check["single_best_answer"] and check["confidence"] == "high"
+    if not passed:
+        print(f"[Quiz] Dropped a {q['topic']} question (key {q['correct']}, reviewer {check['answer']}, "
+              f"single best={check['single_best_answer']}, confidence={check['confidence']}): {check['issue'][:120]}")
+    return passed
+
+
+def generate_checked_questions(n: int, avoid: list) -> list:
+    """Generate n questions that pass the re-check, retrying dropped ones on fresh topics."""
+    kept = []
+    for _ in range(MAX_GENERATION_ROUNDS):
+        need = n - len(kept)
+        if need <= 0:
+            break
+        # Ask for a few extra so dropped questions don't leave the batch short
+        topics = pick_topics(need + max(1, need // 3))
+        print(f"[Quiz] Generating {len(topics)} General Surgery questions...")
+        candidates = generate_questions(topics, avoid + [q["question"] for q in kept])
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            results = list(pool.map(question_passes_check, candidates))
+        for q, ok in zip(candidates, results):
+            if ok and len(kept) < n:
+                q["image"] = None
+                kept.append(q)
+        print(f"[Quiz] {sum(results)} of {len(candidates)} passed the re-check; {len(kept)}/{n} kept.")
+    if not kept:
+        raise RuntimeError("No questions passed the re-check")
+    return kept
+
+
+def save_questions() -> None:
+    with open(QUESTIONS_CACHE_FILE, "w") as f:
+        json.dump({"questions": _questions, "page_image_map": _page_image_map}, f, indent=2)
 
 
 def add_more_questions() -> None:
     """Append a fresh batch so nobody starts repeating questions."""
     print(f"[Quiz] Someone reached the end of the list — generating {NUM_QUESTIONS} more questions...")
-    pages_by_pdf = extract_pdf_content()
-    new = generate_all_questions(pages_by_pdf, NUM_QUESTIONS, avoid=[q["question"] for q in _questions])
-    assign_images(new)
-    _questions.extend(new)
-    with open(QUESTIONS_CACHE_FILE, "w") as f:
-        json.dump({"questions": _questions, "page_image_map": _page_image_map}, f, indent=2)
+    _questions.extend(generate_checked_questions(NUM_QUESTIONS, avoid=[q["question"] for q in _questions]))
+    save_questions()
     print(f"[Quiz] Now {len(_questions)} questions.")
 
 
-def generate_questions(text: str, num_questions: int, avoid: list | None = None) -> list:
-    avoid_text = ""
-    if avoid:
-        avoid_text = (
-            "Do NOT repeat, reword, or test the same fact as any of these existing questions:\n"
-            + "\n".join(f"- {a}" for a in avoid) + "\n\n"
-        )
-    response = claude.messages.create(
-        model="claude-opus-4-8",
-        max_tokens=8000,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Based on the following text, generate exactly {num_questions} "
-                "multiple-choice questions to test comprehension.\n\n"
-                "Each page of text is tagged with [PAGE_ID:some_id]. "
-                "For each question, record which PAGE_ID the question is primarily based on.\n\n"
-                "Return ONLY a valid JSON array — no markdown fences, no extra text. "
-                "Each element must follow this exact structure:\n"
-                "{\n"
-                '  "question": "The question text",\n'
-                '  "options": {"A": "...", "B": "...", "C": "...", "D": "..."},\n'
-                '  "correct": "A",\n'
-                '  "explanation": "A conversational explanation — talk to the student directly, explain the concept in plain language, do NOT reference the text or passage",\n'
-                '  "source_page": "the PAGE_ID this question came from"\n'
-                "}\n\n"
-                "For explanations: be friendly and direct, explain why the concept works this way, briefly mention why wrong answers are off.\n\n"
-                f"{avoid_text}TEXT:\n{text}"
-            )
-        }]
-    )
-    content = response.content[0].text.strip()
-    if "```" in content:
-        start = content.find("[")
-        end = content.rfind("]") + 1
-        if start != -1 and end > start:
-            content = content[start:end]
-    return json.loads(content)
-
-
 def preload_questions() -> None:
+    # Retry so a temporary API or network problem at startup doesn't leave the app with no questions
+    for attempt in range(1, 6):
+        if load_or_generate_questions():
+            return
+        print(f"[Quiz] Startup attempt {attempt} failed; retrying in 2 minutes...")
+        time.sleep(120)
+
+
+def load_or_generate_questions() -> bool:
     global _questions, _questions_error, _page_image_map
     try:
         if os.path.exists(QUESTIONS_CACHE_FILE):
@@ -392,74 +410,25 @@ def preload_questions() -> None:
             with open(QUESTIONS_CACHE_FILE) as f:
                 cache = json.load(f)
             _questions = cache["questions"]
-            _page_image_map = cache["page_image_map"]
+            _page_image_map = cache.get("page_image_map", {})
         else:
-            print("[Quiz] Extracting text and images from PDFs...")
-            pages_by_pdf = extract_pdf_content()
-            total_chars = sum(len(p) for pages in pages_by_pdf.values() for p in pages)
-            print(f"[Quiz] Extracted {total_chars:,} characters. Generating {NUM_QUESTIONS} questions...")
-            _questions = generate_all_questions(pages_by_pdf, NUM_QUESTIONS)
-            with open(QUESTIONS_CACHE_FILE, "w") as f:
-                json.dump({"questions": _questions, "page_image_map": _page_image_map}, f, indent=2)
-        if any("image" not in q for q in _questions):
-            assign_images(_questions)
-            with open(QUESTIONS_CACHE_FILE, "w") as f:
-                json.dump({"questions": _questions, "page_image_map": _page_image_map}, f, indent=2)
+            _questions = generate_checked_questions(NUM_QUESTIONS, avoid=[])
+            save_questions()
         print(f"[Quiz] Ready — {len(_questions)} questions loaded.")
         restore_sessions()
         if SEND_ON_START:
             print("[Quiz] Sending startup questions to all recipients...")
             send_daily_questions()
+        return True
     except Exception as exc:
         _questions_error = str(exc)
         print(f"[Quiz] Error: {exc}")
+        return False
 
 
 # ---------------------------------------------------------------------------
 # Image helpers
 # ---------------------------------------------------------------------------
-
-def image_fits_question(q: dict, filename: str) -> bool:
-    with open(os.path.join(IMAGE_DIR, filename), "rb") as f:
-        data = base64.standard_b64encode(f.read()).decode()
-    media_type = "image/png" if filename.lower().endswith(".png") else "image/jpeg"
-    response = claude.messages.create(
-        model="claude-opus-4-8",
-        max_tokens=5,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}},
-                {"type": "text", "text": (
-                    "This image comes from the same textbook page as the quiz question below. "
-                    "Answer YES only if the image directly shows the patient, finding, or concept "
-                    "the question is about, so it would help a student reading the question, AND it "
-                    "does not reveal the correct answer in a label or caption. Otherwise answer NO. "
-                    "Reply with only YES or NO.\n\n"
-                    f"Question: {q['question']}\n"
-                    f"Correct answer: {q['correct']}) {q['options'][q['correct']]}"
-                )},
-            ],
-        }],
-    )
-    return response.content[0].text.strip().upper().startswith("YES")
-
-
-def assign_images(questions: list) -> None:
-    """Pick a relevant image for each question (or none), stored as q["image"]."""
-    for q in questions:
-        if "image" in q:
-            continue
-        q["image"] = None
-        for filename in _page_image_map.get(q.get("source_page", ""), []):
-            try:
-                if image_fits_question(q, filename):
-                    q["image"] = filename
-                    break
-            except Exception as exc:
-                print(f"[Images] Could not check {filename}: {exc}")
-        print(f"[Images] {q['source_page']}: {q['image'] or 'no relevant image'}")
-
 
 def get_image_url_for_question(q: dict) -> str | None:
     """Return a public URL to the question's relevant image, if it has one."""
@@ -883,9 +852,6 @@ def report_page():
 def send_picture_test() -> str:
     """Send everyone a question with an approved picture, without advancing their daily order."""
     pool = [q for q in _questions or [] if q.get("image")]
-    if os.path.exists(PREVIOUS_QUESTIONS_FILE):
-        with open(PREVIOUS_QUESTIONS_FILE) as f:
-            pool += [q for q in json.load(f)["questions"] if q.get("image")]
     if not pool or not NGROK_URL:
         return "No questions with an approved picture."
 
