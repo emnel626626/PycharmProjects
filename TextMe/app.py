@@ -748,8 +748,33 @@ def send_daily_questions() -> None:
     for phone, name in recipients.items():
         if phone in opted_out:
             print(f"[Scheduler] Skipping {name or phone} (opted out)")
-            continue
-        start = progress.get(phone, 0)
+
+    # Each person's set goes out in its own thread, since waiting on delivery takes a while
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for phone in active:
+            pool.submit(send_day_to, phone, recipients[phone], progress.get(phone, 0), n)
+    for phone in active:
+        progress[phone] = progress.get(phone, 0) + n
+
+    save_progress(progress)
+
+    # Write the next batch now, in the background, so tomorrow's send never waits on it
+    if active and len(_questions) - max(progress.get(p, 0) for p in active) < 2 * n:
+        threading.Thread(target=add_more_questions, kwargs={"wait": False}, daemon=True).start()
+
+
+def wait_for_delivery(sid: str, timeout: float = 45) -> None:
+    """Block until a message is delivered (or fails). Picture messages travel slower than plain
+    texts, so without this a plain Q2 can overtake a picture Q1."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if twilio.messages(sid).fetch().status in ("delivered", "undelivered", "failed"):
+            return
+        time.sleep(2)
+
+
+def send_day_to(phone: str, name: str, start: int, n: int) -> None:
+    try:
         greeting = f"Hi {name}! " if name else ""
         to = to_whatsapp(phone) if USE_WHATSAPP else phone
         # Today's set replaces yesterday's unanswered questions
@@ -768,22 +793,18 @@ def send_daily_questions() -> None:
                 msg_params = dict(to=to, from_=get_from_number(phone), body=body)
                 if image_url:
                     msg_params["media_url"] = [image_url]
-                twilio.messages.create(**msg_params)
+                message = twilio.messages.create(**msg_params)
                 open_question(phone, name, label, q)
                 log_event("question_sent", phone, name, source="daily", label=label, new_day=i == 0,
                           question=q["question"], q=q)
                 print(f"[Scheduler] Sent Q{label} (#{(start + i) % len(_questions) + 1}) to {name or phone}"
                       + (" (with image)" if image_url else ""))
+                if i < n - 1:
+                    wait_for_delivery(message.sid)  # keeps Q1, Q2, Q3 arriving in order
             except Exception as exc:
                 print(f"[Scheduler] Failed to send Q{label} to {phone}: {exc}")
-            time.sleep(1)  # keeps Q1, Q2, Q3 arriving in order
-        progress[phone] = start + n
-
-    save_progress(progress)
-
-    # Write the next batch now, in the background, so tomorrow's send never waits on it
-    if active and len(_questions) - max(progress.get(p, 0) for p in active) < 2 * n:
-        threading.Thread(target=add_more_questions, kwargs={"wait": False}, daemon=True).start()
+    except Exception as exc:
+        print(f"[Scheduler] Failed to send today's questions to {phone}: {exc}")
 
 
 # ---------------------------------------------------------------------------
