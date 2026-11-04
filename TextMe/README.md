@@ -66,7 +66,28 @@ ngrok http 5000
 .venv\Scripts\python.exe app.py
 ```
 
-The computer must stay on and awake for the daily send to go out and for replies to get answered.
+The computer must stay on and awake for the daily send to go out and for replies to get answered. To avoid that, run it in the cloud (below).
+
+---
+
+## Running in the cloud (Railway)
+
+Railway keeps the app running all the time, so the 7 am send goes out with your computer off. It costs about $5/month on the Hobby plan. `railway.json` holds the start command: a single gunicorn worker, so the daily texts go out once.
+
+1. Sign up at railway.com and choose **New Project → Deploy from GitHub repo**, then pick this repo.
+2. In the service's **Settings**, set **Root Directory** to `TextMe`.
+3. Add a **Volume** to the service, mounted at `/data`.
+4. Under **Variables**, add everything from `.env`, plus:
+   - `DATA_DIR=/data`
+   - `SEND_ON_START=false` (otherwise every redeploy texts everyone)
+   - `TIMEZONE=America/New_York`
+   - `SEED_RECIPIENTS=+1XXXXXXXXXX, Emily; +1XXXXXXXXXX, Chris` (only read the first time, when `/data` has no `recipients.txt`)
+   - `REPORT_KEY=<something long and random>`
+5. Under **Settings → Networking**, choose **Generate Domain**. Then add `PUBLIC_URL=https://<that-domain>` as a variable.
+6. In the Twilio console, set the number's (or Messaging Service's) incoming-message webhook to `https://<that-domain>/webhook` (HTTP POST).
+7. **Stop the copy on this computer** (close the TextMe-app and TextMe-ngrok windows). If both copies run, everyone gets two sets of texts at 7 am.
+
+On first boot the app copies `recipients.txt`, `progress.json`, the question caches and `images/` from the repo into `/data`. It never overwrites files that are already there. After that, everything lives on the volume, so redeploys keep it. View the report at `https://<that-domain>/report?key=<REPORT_KEY>`. To test a send: `Invoke-WebRequest -Method POST "https://<that-domain>/send-now?key=<REPORT_KEY>" -UseBasicParsing`.
 
 ---
 
@@ -121,9 +142,13 @@ Invoke-WebRequest -Method POST http://localhost:5000/send-now -UseBasicParsing
 | `TWILIO_AUTH_TOKEN` | — | Twilio auth token (required; also used to check webhook signatures) |
 | `TWILIO_PHONE_NUMBER` | — | The registered Twilio number that sends the texts (required) |
 | `CAMPAIGN_DISPLAY_NUMBER` | — | Number shown on the opt-in/privacy/terms pages |
-| `NGROK_URL` | — | Public ngrok URL, used for signature checks and images (required) |
+| `PUBLIC_URL` (or `NGROK_URL`) | — | The app's public URL (Railway domain or ngrok), used for signature checks and images (required) |
 | `NUM_QUESTIONS` | `10` | Questions per batch (each batch also runs the re-check, so larger batches take longer) |
-| `SEND_HOUR` / `SEND_MINUTE` | `9` / `0` | Daily send time (24h, this computer's time zone) |
+| `SEND_HOUR` / `SEND_MINUTE` | `9` / `0` | Daily send time (24h, in `TIMEZONE`) |
+| `TIMEZONE` | `America/New_York` | Time zone for the daily send and event timestamps |
+| `DATA_DIR` | app folder | Where recipients, progress, events, caches and images are stored (`/data` on Railway) |
+| `SEED_RECIPIENTS` | — | `phone, name; phone, name`, used to create `recipients.txt` if it doesn't exist yet |
+| `HOST` | `127.0.0.1` | Address Flask listens on when run with `python app.py` |
 | `SEND_ON_START` | `true` | Send to everyone as soon as the app starts. Set to `false` to avoid surprise texts on restart. |
 | `QUESTIONS_PER_DAY` | `3` | Questions sent each morning |
 | `PICTURE_QUESTIONS_PER_BATCH` | `2` | Picture questions in each batch of `NUM_QUESTIONS` |
@@ -147,3 +172,4 @@ Invoke-WebRequest -Method POST http://localhost:5000/send-now -UseBasicParsing
 | `How_TextMe_Works.pdf` / `.html` | Diagram of the system, and its source |
 | `start_textme.bat` | Starts ngrok and the app |
 | `.env` | Keys and settings (never commit) |
+| `railway.json` / `.python-version` | Cloud start command and Python version for Railway |

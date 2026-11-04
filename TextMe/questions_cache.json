@@ -1,0 +1,180 @@
+{
+  "questions": [
+    {
+      "topic": "Anorectal",
+      "question": "A 58-year-old man has a 3 cm biopsy-proven squamous cell carcinoma of the anal canal with a palpable inguinal node. Staging CT shows no distant disease. What is the best initial treatment?",
+      "options": {
+        "A": "Abdominoperineal resection with inguinal node dissection",
+        "B": "Chemoradiation with 5-FU and mitomycin C",
+        "C": "Wide local excision followed by radiation",
+        "D": "Neoadjuvant chemoradiation followed by abdominoperineal resection"
+      },
+      "correct": "B",
+      "explanation": "Chemoradiation (Nigro protocol: 5-FU, mitomycin C, and radiation including the inguinal nodes) is first-line for anal canal SCC, even with nodal disease, and preserves the sphincter in most patients. Don't treat it like rectal adenocarcinoma: APR is reserved for persistent or recurrent disease after chemoradiation, not planned after neoadjuvant therapy.",
+      "image": null
+    },
+    {
+      "topic": "Esophagus",
+      "question": "A 45-year-old woman has 2 years of progressive dysphagia to solids and liquids, regurgitation of undigested food, and 8-kg weight loss. Her barium swallow is shown in the image. EGD shows no mucosal lesion or mass. Which study best confirms the diagnosis?",
+      "options": {
+        "A": "High-resolution esophageal manometry",
+        "B": "24-hour ambulatory esophageal pH monitoring",
+        "C": "CT scan of the chest and abdomen",
+        "D": "Nuclear medicine gastric emptying study"
+      },
+      "correct": "A",
+      "explanation": "The image shows a dilated esophagus with smooth bird's beak tapering at the GE junction, typical of achalasia. With malignancy excluded by EGD, high-resolution manometry is the gold standard. It shows incomplete LES relaxation (elevated IRP) and absent peristalsis, and its subtype guides therapy. pH monitoring evaluates GERD and does not diagnose achalasia. CT is only used if EGD raises concern for pseudoachalasia.",
+      "image": "gs_7734c7b72be0.jpg",
+      "image_credit": "Image: Hellerhoff, CC BY-SA 3.0, Wikimedia Commons",
+      "image_source": "https://commons.wikimedia.org/w/index.php?curid=18816631"
+    },
+    {
+      "topic": "Abdomen - Liver",
+      "question": "A 30-year-old man has a 3 cm liver lesion found on CT for flank pain. MRI with hepatobiliary contrast is consistent with hepatocellular adenoma. He uses anabolic steroids and agrees to stop. What is the best management?",
+      "options": {
+        "A": "Repeat MRI in 6 months",
+        "B": "Transarterial embolization",
+        "C": "Percutaneous biopsy for beta-catenin mutation",
+        "D": "Surgical resection"
+      },
+      "correct": "D",
+      "explanation": "Resect hepatocellular adenomas in men at any size because their risk of malignant transformation is much higher. Stopping hormones and reimaging is appropriate for women with adenomas under 5 cm, not for men. Biopsy carries bleeding risk and won't change management here. Embolization is mainly used to control acute hemorrhage.",
+      "image": null
+    },
+    {
+      "topic": "Pediatric Surgery",
+      "question": "A 1-day-old with Down syndrome has bilious emesis after first feeds. The abdomen is soft and nondistended. An abdominal radiograph is shown in the image. What is the best next step in management?",
+      "options": {
+        "A": "Emergent upper GI contrast study to exclude malrotation with volvulus",
+        "B": "Gastric decompression, IV fluids, echocardiogram, then duodenoduodenostomy",
+        "C": "Emergent laparotomy with Ladd procedure",
+        "D": "Contrast enema to evaluate for microcolon"
+      },
+      "correct": "B",
+      "explanation": "The image shows a double bubble: a dilated stomach and proximal duodenum with no distal bowel gas, diagnostic of duodenal atresia. No further imaging is needed. Management is gastric decompression, fluid resuscitation, and screening for associated anomalies, especially cardiac, followed by duodenoduodenostomy. An upper GI study is reserved for cases with distal gas, where malrotation with volvulus must be excluded.",
+      "image": "gs_522b85fdb9ff.png",
+      "image_credit": "Image: Kinderradiologie Olgahospital Klinikum S, CC BY-SA 3.0, Wikimedia Commons",
+      "image_source": "https://commons.wikimedia.org/w/index.php?curid=32592969"
+    },
+    {
+      "topic": "Biostatistics and Evaluation of Evidence",
+      "question": "A new colorectal cancer screening test validated in a high-risk referral clinic is applied to the general population, where disease prevalence is much lower. Which change in test performance is expected?",
+      "options": {
+        "A": "PPV decreases; sensitivity and specificity are unchanged",
+        "B": "Sensitivity decreases; PPV is unchanged",
+        "C": "Specificity increases; NPV decreases",
+        "D": "PPV and NPV both decrease"
+      },
+      "correct": "A",
+      "explanation": "Sensitivity and specificity are intrinsic to the test and don't change with prevalence. Predictive values do change. At lower prevalence, more positives are false positives, so PPV falls, while NPV rises. That is why both values can't fall together, and why screening low-prevalence populations generates many false positives.",
+      "image": null
+    },
+    {
+      "topic": "Surgical Critical Care",
+      "question": "A 45-year-old man with severe gallstone pancreatitis is intubated on hospital day 3. Echo shows normal LV function. On 6 mL/kg IBW tidal volume, FiO2 0.8, and PEEP 14, PaO2 is 64 mmHg. Based on the image, what is the best next step?",
+      "options": {
+        "A": "Prone positioning for at least 16 hours per day",
+        "B": "Venovenous ECMO cannulation",
+        "C": "Inhaled nitric oxide",
+        "D": "High-dose furosemide diuresis"
+      },
+      "correct": "A",
+      "explanation": "The image shows bilateral diffuse alveolar infiltrates. With normal LV function and P/F 80, this is severe ARDS. Once low tidal volume ventilation and adequate PEEP are in place, early prone positioning for at least 16 h/day reduces mortality when P/F is below 150 (PROSEVA). VV-ECMO is a rescue therapy for refractory hypoxemia after proning fails. Inhaled NO improves oxygenation without a survival benefit. Diuresis does not treat non-cardiogenic edema.",
+      "image": "gs_3ab07ed29f9a.jpg",
+      "image_credit": "Image: Samir, CC BY-SA 3.0, Wikimedia Commons",
+      "image_source": "https://commons.wikimedia.org/w/index.php?curid=2975916"
+    },
+    {
+      "topic": "Ethics",
+      "question": "An unconscious 45-year-old man arrives after a motorcycle crash with BP 70/40 and a positive FAST. No family, surrogate, or advance directive can be found. What is the most appropriate action?",
+      "options": {
+        "A": "Delay surgery until next of kin can be reached",
+        "B": "Obtain an emergency court order before operating",
+        "C": "Proceed with laparotomy under implied consent",
+        "D": "Request an ethics consultation before operating"
+      },
+      "correct": "C",
+      "explanation": "In a life-threatening emergency, when the patient lacks capacity and no surrogate or known wishes are available, the emergency exception lets you proceed. We presume a reasonable person would consent to lifesaving care. Waiting for a court order, an ethics consult, or family would cause harmful delay in a patient in hemorrhagic shock. Document the emergency and your reasoning.",
+      "image": null
+    },
+    {
+      "topic": "Endocrine",
+      "question": "A 34-year-old woman with MEN2A has an elevated calcitonin, a 2 cm thyroid nodule, and a 4 cm adrenal mass with elevated plasma metanephrines. She has been alpha-blocked. What is the correct operative sequence?",
+      "options": {
+        "A": "Total thyroidectomy with central neck dissection, then adrenalectomy",
+        "B": "Adrenalectomy, then total thyroidectomy with central neck dissection",
+        "C": "Simultaneous thyroidectomy and adrenalectomy without staging",
+        "D": "Adrenalectomy alone with thyroid surveillance"
+      },
+      "correct": "B",
+      "explanation": "Always remove the pheochromocytoma first, after alpha blockade. Operating on the thyroid with an untreated pheo risks a fatal hypertensive crisis. Then perform total thyroidectomy with central neck dissection for medullary thyroid cancer. Surveillance alone isn't acceptable because MTC in MEN2A is the main determinant of survival.",
+      "image": null
+    },
+    {
+      "topic": "Stomach",
+      "question": "A 62-year-old woman with dyspepsia has EGD biopsies showing low-grade gastric MALT lymphoma confined to the mucosa and submucosa. H. pylori testing is positive. What is the best initial treatment?",
+      "options": {
+        "A": "Total gastrectomy",
+        "B": "R-CHOP chemotherapy",
+        "C": "H. pylori eradication therapy",
+        "D": "Involved-field radiation therapy"
+      },
+      "correct": "C",
+      "explanation": "Early-stage low-grade gastric MALT lymphoma is driven by H. pylori, and eradication alone produces remission in most patients. Confirm eradication and follow with surveillance endoscopy. Radiation is used for persistent disease or H. pylori-negative tumors. Gastrectomy no longer has a routine role, and chemotherapy is for high-grade or advanced disease.",
+      "image": null
+    },
+    {
+      "topic": "Abdomen - Pancreas",
+      "question": "A 50-year-old man is 4 weeks into severe gallstone pancreatitis and has new fever and rising WBC. CT shows a walled-off necrotic collection containing gas. He is stable on antibiotics. What is the next step?",
+      "options": {
+        "A": "Endoscopic transgastric or percutaneous drainage",
+        "B": "Open necrosectomy",
+        "C": "CT-guided fine-needle aspiration for Gram stain and culture",
+        "D": "Immediate laparoscopic cholecystectomy"
+      },
+      "correct": "A",
+      "explanation": "Gas in walled-off necrosis with clinical deterioration indicates infected necrosis. Use the step-up approach: start with endoscopic or percutaneous drainage, then escalate to minimally invasive necrosectomy if needed. Open necrosectomy has higher morbidity. FNA isn't needed when gas is present. Delay cholecystectomy until the collection resolves.",
+      "image": null
+    },
+    {
+      "topic": "Transplantation",
+      "question": "Minutes after reperfusion of a renal allograft, the kidney becomes mottled, cyanotic, and flaccid. What is the underlying mechanism?",
+      "options": {
+        "A": "T-cell-mediated cellular infiltration",
+        "B": "Calcineurin inhibitor-induced vasoconstriction",
+        "C": "De novo donor-specific antibodies forming over weeks",
+        "D": "Preformed recipient antibodies activating complement"
+      },
+      "correct": "D",
+      "explanation": "This is hyperacute rejection. Preformed antibodies against ABO or HLA antigens bind graft endothelium, activate complement, and cause immediate thrombosis. It is prevented by ABO matching and a negative crossmatch, and the graft must be removed. Acute cellular rejection is T-cell mediated and occurs days to months later.",
+      "image": null
+    },
+    {
+      "topic": "Geriatric Surgery and End-of-Life Care",
+      "question": "An 84-year-old woman is agitated and inattentive on POD 2 after hip fracture repair. Exam, labs, and urinalysis are unremarkable, and her pain is controlled. She is not endangering herself or staff. What is the best initial management?",
+      "options": {
+        "A": "Reorientation, sleep hygiene, glasses/hearing aids, early mobilization",
+        "B": "Lorazepam at bedtime",
+        "C": "Soft wrist restraints",
+        "D": "Scheduled haloperidol"
+      },
+      "correct": "A",
+      "explanation": "After you exclude reversible causes, manage delirium first with nonpharmacologic measures: reorientation, a normal sleep-wake cycle, sensory aids, mobilization, and removing tethers. Benzodiazepines worsen delirium in older adults and should be avoided. Restraints increase agitation and injury. Reserve antipsychotics for patients who are a danger to themselves or others.",
+      "image": null
+    },
+    {
+      "topic": "Surgical Critical Care",
+      "question": "A 67-year-old man with perforated diverticulitis has a MAP of 56 and lactate of 4.2 despite 30 mL/kg crystalloid and broad-spectrum antibiotics. What is the next step in hemodynamic management?",
+      "options": {
+        "A": "Additional 2 L crystalloid bolus",
+        "B": "Start norepinephrine",
+        "C": "Start dopamine",
+        "D": "Hydrocortisone 200 mg/day"
+      },
+      "correct": "B",
+      "explanation": "Surviving Sepsis guidelines make norepinephrine the first-line vasopressor for septic shock that persists after initial fluid resuscitation, targeting MAP 65 or higher. Dopamine causes more arrhythmias and is no longer favored. Add hydrocortisone only for ongoing vasopressor requirement. Give further fluid only if he is fluid-responsive. Arrange urgent source control.",
+      "image": null
+    }
+  ],
+  "page_image_map": {}
+}

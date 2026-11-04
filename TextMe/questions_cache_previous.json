@@ -1,0 +1,455 @@
+{
+  "questions": [
+    {
+      "question": "What is the first-line therapy for a hemodynamically stable patient with postoperative atrial fibrillation after cardiac surgery?",
+      "options": {
+        "A": "Intravenous beta blocker for rate control",
+        "B": "Synchronized cardioversion",
+        "C": "Intravenous digoxin",
+        "D": "Oral amiodarone"
+      },
+      "correct": "A",
+      "explanation": "When a patient is stable but goes into atrial fibrillation after heart surgery, you want to slow down the heart rate first using medications that block the AV node. Beta blockers are the go-to choice here because they work well and have fewer side effects than antiarrhythmic drugs. Cardioversion is reserved for unstable patients, and digoxin is more of a backup when blood pressure won't tolerate more beta blocker. Amiodarone is used when rate control fails or the patient stays very symptomatic.",
+      "source_page": "CriticalCare_p7",
+      "image": null
+    },
+    {
+      "question": "A postoperative cardiac surgery patient develops hypotension, tachycardia, and an echocardiogram shows a large anterior pericardial effusion. What is the appropriate treatment?",
+      "options": {
+        "A": "Left thoracostomy tube",
+        "B": "Emergent mediastinal re-exploration",
+        "C": "Emergent coronary angiogram",
+        "D": "Systemic heparin with CT for pulmonary embolism"
+      },
+      "correct": "B",
+      "explanation": "This is cardiac tamponade \u2014 fluid building up around the heart squeezes it so it can't fill properly, dropping blood pressure and raising heart rate. When there's significant hemodynamic compromise after cardiac surgery, you need to go back in surgically to relieve the pressure right away. A chest tube wouldn't drain the pericardial space, and heparin would be dangerous if there's bleeding causing the tamponade. A coronary angiogram wouldn't address the compression.",
+      "source_page": "CriticalCare_p9",
+      "image": "CriticalCare_p9_0.jpg"
+    },
+    {
+      "question": "During weaning from cardiopulmonary bypass after mitral valve repair, a patient develops hypotension, ST elevation in inferior leads, and inferior wall hypokinesis. What is the best next step?",
+      "options": {
+        "A": "Insert intra-aortic balloon pump and give inotropes",
+        "B": "Re-institute CPB for 30 minutes and reassess",
+        "C": "Emergent coronary angiogram with PCI",
+        "D": "Revision of annuloplasty stitches and assess need for coronary bypass"
+      },
+      "correct": "D",
+      "explanation": "The circumflex coronary artery runs right next to the mitral valve annulus, so it can get caught or kinked by annuloplasty sutures during mitral surgery. When this injury is found during the operation while the patient is unstable, the right move is to revise those sutures to relieve the mechanism and consider bypass if needed. PCI is better for stable patients or injuries found later. Just supporting with a balloon pump or resting on bypass doesn't fix the actual mechanical problem.",
+      "source_page": "CriticalCare_p11",
+      "image": null
+    },
+    {
+      "question": "What scoring system is used to assess stroke risk in patients with postoperative atrial fibrillation?",
+      "options": {
+        "A": "APACHE II score",
+        "B": "CHA2DS2-VASc score",
+        "C": "Maslach Burnout Inventory",
+        "D": "Wilcoxon rank-sum score"
+      },
+      "correct": "B",
+      "explanation": "The CHA2DS2-VASc score is the tool for estimating stroke risk in atrial fibrillation. It adds up points for things like congestive heart failure, hypertension, age, diabetes, prior stroke, vascular disease, and female sex. This helps decide who needs anticoagulation. APACHE II measures illness severity in the ICU, the Maslach Inventory is for burnout, and Wilcoxon is a statistical test \u2014 none of those relate to stroke risk.",
+      "source_page": "CriticalCare_p14",
+      "image": null
+    },
+    {
+      "question": "A patient develops the triad of fever, chest pain, and new neurological symptoms about 4 weeks after atrial fibrillation catheter ablation, with CT showing air near the left atrium. After starting antibiotics, what is the best next step?",
+      "options": {
+        "A": "Endoscopic stent placement",
+        "B": "Gastrograffin/thin barium esophagram",
+        "C": "Repeat CT with contrast in 24 hours",
+        "D": "Urgent surgical repair"
+      },
+      "correct": "D",
+      "explanation": "This is an atrio-esophageal fistula, a rare but deadly complication of AF ablation. An abnormal connection forms between the esophagus and left atrium, letting air and debris embolize to the brain. The triad of fever, chest pain, and neuro symptoms weeks after ablation should ring alarm bells. Surgical repair is lifesaving. Stents actually have a 100% mortality in studies. Avoid esophagrams and endoscopy because insufflating air can worsen the embolic damage, and you can't wait 24 hours.",
+      "source_page": "CriticalCare_p16",
+      "image": null
+    },
+    {
+      "question": "A patient in septic shock from aspiration pneumonia with moderate ARDS needs resuscitation. According to Surviving Sepsis guidelines, what is the recommended initial fluid approach?",
+      "options": {
+        "A": "Administer crystalloid (at least 30 mL/kg) with albumin as part of initial resuscitation",
+        "B": "Initiate vasopressin at 0.03 units/min immediately",
+        "C": "Administer hydrocortisone 200 mg/day first",
+        "D": "Transfuse 1 unit of pRBCs"
+      },
+      "correct": "A",
+      "explanation": "In septic shock, the first priority is restoring blood flow to tissues with fluids \u2014 guidelines call for at least 30 mL/kg of crystalloid in the first few hours. When there's lots of fluid needed plus respiratory failure, adding albumin can be reasonable. Vasopressin is only added after norepinephrine, and steroids come in only when the patient stays hypotensive despite fluids and pressors. Transfusing blood isn't needed with a hemoglobin of 10.5 unless there's active bleeding.",
+      "source_page": "CriticalCare_p19",
+      "image": "CriticalCare_p19_0.jpg"
+    },
+    {
+      "question": "What is the reported incidence of burnout in thoracic surgeons compared to other physician groups?",
+      "options": {
+        "A": "Almost twice as much as primary care physicians",
+        "B": "Equivalent to the mean of all physician groups (40% to 50%)",
+        "C": "The same as emergency physicians",
+        "D": "Lower than resident physicians"
+      },
+      "correct": "B",
+      "explanation": "Thoracic surgeons experience burnout at rates right around the overall physician average, which falls between 40% and 50%. Emergency medicine and primary care actually run somewhat higher. So thoracic and general surgery sit in the typical range rather than being outliers. The measuring tool for this is the Maslach Burnout Inventory, which looks at emotional exhaustion, depersonalization, and sense of accomplishment.",
+      "source_page": "CriticalCare_p23",
+      "image": null
+    },
+    {
+      "question": "A high-risk patient with a prior history of deep venous thrombosis and bilateral pedal edema needs preoperative lower extremity evaluation before coronary revascularization. What is the best study?",
+      "options": {
+        "A": "Ankle brachial index",
+        "B": "CT venography",
+        "C": "Saphenous vein mapping",
+        "D": "Ultrasound duplex"
+      },
+      "correct": "D",
+      "explanation": "For ruling out a deep venous thrombosis \u2014 especially in someone who's already had one \u2014 lower extremity ultrasound duplex is the gold standard imaging test. It's noninvasive and reliable. The ankle brachial index checks for arterial disease, not clots. CT venography would require good kidney function, which this patient doesn't have. Vein mapping assesses conduit quality but isn't the test for diagnosing DVT.",
+      "source_page": "CriticalCare_p24",
+      "image": null
+    },
+    {
+      "question": "A patient with a post-lung resection empyema presents with sepsis (fever, tachypnea, hypotension with MAP 70 mmHg, confusion). What is the best next step in management?",
+      "options": {
+        "A": "Broad-spectrum antibiotics",
+        "B": "Bronchoscopic alveolar lavage",
+        "C": "Norepinephrine infusion",
+        "D": "VATS decortication"
+      },
+      "correct": "A",
+      "explanation": "The cornerstone of early sepsis treatment is getting appropriate broad-spectrum antibiotics started quickly \u2014 ideally within an hour of recognizing sepsis, because every hour of delay raises mortality. You can even start them before the patient physically reaches the ICU. The MAP of 70 means fluids come before norepinephrine. Doing a lavage first would delay antibiotics, and heading straight to surgery isn't needed yet since the patient is stable enough to plan the best approach.",
+      "source_page": "CriticalCare_p25",
+      "image": null
+    },
+    {
+      "question": "According to best practice in designing an incident reporting system in healthcare, which feature is recommended?",
+      "options": {
+        "A": "Allow the reporter to actively participate in the error investigation",
+        "B": "Emphasize the recovery mechanism in the near miss event",
+        "C": "Require error taxonomies tracing the causal path from active failure to latent error",
+        "D": "Utilize the aviation industry format of near miss reporting"
+      },
+      "correct": "C",
+      "explanation": "A good incident reporting system uses error taxonomies \u2014 basically organized classification schemes \u2014 so you can trace how an error developed, following the path from an active failure back to the underlying latent (system-level) error. This lets you fix root causes. The reporter should get feedback but shouldn't run the investigation themselves. The aviation model doesn't fully fit the complexity of healthcare, and focusing just on recovery mechanisms misses the deeper system analysis.",
+      "source_page": "CriticalCare_p5",
+      "image": null
+    }
+  ],
+  "page_image_map": {
+    "part1_p2": [
+      "part1_p2_0.jpg",
+      "part1_p2_1.jpg",
+      "part1_p2_2.jpg"
+    ],
+    "part1_p4": [
+      "part1_p4_0.jpg",
+      "part1_p4_1.jpg",
+      "part1_p4_2.jpg",
+      "part1_p4_3.jpg"
+    ],
+    "part1_p6": [
+      "part1_p6_0.jpg",
+      "part1_p6_1.jpg",
+      "part1_p6_2.jpg",
+      "part1_p6_3.jpg"
+    ],
+    "part1_p8": [
+      "part1_p8_0.jpg",
+      "part1_p8_1.jpg",
+      "part1_p8_2.jpg",
+      "part1_p8_3.jpg"
+    ],
+    "part1_p10": [
+      "part1_p10_0.jpg",
+      "part1_p10_1.jpg",
+      "part1_p10_2.jpg",
+      "part1_p10_3.jpg",
+      "part1_p10_4.jpg",
+      "part1_p10_5.jpg",
+      "part1_p10_6.jpg",
+      "part1_p10_7.jpg"
+    ],
+    "part1_p12": [
+      "part1_p12_0.jpg",
+      "part1_p12_1.jpg",
+      "part1_p12_2.jpg",
+      "part1_p12_3.jpg",
+      "part1_p12_4.jpg"
+    ],
+    "part1_p14": [
+      "part1_p14_0.jpg",
+      "part1_p14_1.jpg",
+      "part1_p14_2.jpg",
+      "part1_p14_4.jpg",
+      "part1_p14_5.jpg",
+      "part1_p14_6.jpg"
+    ],
+    "part1_p16": [
+      "part1_p16_0.jpg",
+      "part1_p16_1.jpg",
+      "part1_p16_2.jpg",
+      "part1_p16_3.jpg",
+      "part1_p16_4.jpg",
+      "part1_p16_5.jpg"
+    ],
+    "part1_p18": [
+      "part1_p18_0.jpg",
+      "part1_p18_1.jpg",
+      "part1_p18_2.jpg",
+      "part1_p18_3.jpg"
+    ],
+    "part1_p20": [
+      "part1_p20_0.jpg",
+      "part1_p20_1.jpg",
+      "part1_p20_2.jpg",
+      "part1_p20_3.jpg"
+    ],
+    "part1_p21": [
+      "part1_p21_0.jpg",
+      "part1_p21_1.jpg",
+      "part1_p21_2.jpg",
+      "part1_p21_3.jpg"
+    ],
+    "part1_p22": [
+      "part1_p22_0.jpg",
+      "part1_p22_1.jpg",
+      "part1_p22_2.jpg",
+      "part1_p22_3.jpg"
+    ],
+    "part1_p24": [
+      "part1_p24_0.jpg",
+      "part1_p24_1.jpg",
+      "part1_p24_2.jpg",
+      "part1_p24_3.jpg",
+      "part1_p24_4.jpg",
+      "part1_p24_5.jpg",
+      "part1_p24_6.jpg"
+    ],
+    "part1_p26": [
+      "part1_p26_0.jpg",
+      "part1_p26_1.jpg",
+      "part1_p26_2.jpg",
+      "part1_p26_3.jpg",
+      "part1_p26_4.jpg",
+      "part1_p26_5.jpg"
+    ],
+    "part1_p28": [
+      "part1_p28_0.jpg",
+      "part1_p28_1.jpg",
+      "part1_p28_2.jpg",
+      "part1_p28_3.jpg",
+      "part1_p28_4.jpg"
+    ],
+    "part1_p30": [
+      "part1_p30_0.jpg"
+    ],
+    "part1_p32": [
+      "part1_p32_0.jpg",
+      "part1_p32_1.jpg",
+      "part1_p32_2.jpg",
+      "part1_p32_3.jpg",
+      "part1_p32_4.jpg",
+      "part1_p32_5.jpg"
+    ],
+    "part1_p34": [
+      "part1_p34_0.jpg"
+    ],
+    "part1_p36": [
+      "part1_p36_0.jpg"
+    ],
+    "part1_p38": [
+      "part1_p38_0.jpg",
+      "part1_p38_1.jpg",
+      "part1_p38_2.jpg",
+      "part1_p38_3.jpg"
+    ],
+    "part1_p40": [
+      "part1_p40_0.jpg"
+    ],
+    "part1_p42": [
+      "part1_p42_0.jpg"
+    ],
+    "part1_p44": [
+      "part1_p44_0.png"
+    ],
+    "part1_p46": [
+      "part1_p46_0.jpg"
+    ],
+    "part1_p48": [
+      "part1_p48_0.png",
+      "part1_p48_1.jpg"
+    ],
+    "part1_p50": [
+      "part1_p50_0.png",
+      "part1_p50_1.png"
+    ],
+    "part1_p52": [
+      "part1_p52_0.png"
+    ],
+    "part1_p54": [
+      "part1_p54_0.jpg"
+    ],
+    "part1_p56": [
+      "part1_p56_0.jpg"
+    ],
+    "part1_p58": [
+      "part1_p58_0.jpg"
+    ],
+    "part1_p60": [
+      "part1_p60_0.png",
+      "part1_p60_1.jpg"
+    ],
+    "CriticalCare_p7": [
+      "CriticalCare_p7_0.jpg"
+    ],
+    "CriticalCare_p9": [
+      "CriticalCare_p9_0.jpg"
+    ],
+    "CriticalCare_p11": [
+      "CriticalCare_p11_0.jpg"
+    ],
+    "CriticalCare_p16": [
+      "CriticalCare_p16_0.jpg"
+    ],
+    "CriticalCare_p19": [
+      "CriticalCare_p19_0.jpg"
+    ],
+    "CriticalCare_p27": [
+      "CriticalCare_p27_0.jpg"
+    ],
+    "CriticalCare_p41": [
+      "CriticalCare_p41_0.jpg"
+    ],
+    "CriticalCare_p43": [
+      "CriticalCare_p43_0.jpg"
+    ],
+    "CriticalCare_p46": [
+      "CriticalCare_p46_0.jpg"
+    ],
+    "CriticalCare_p49": [
+      "CriticalCare_p49_0.jpg"
+    ],
+    "CriticalCare_p59": [
+      "CriticalCare_p59_0.jpg"
+    ],
+    "CriticalCare_p74": [
+      "CriticalCare_p74_0.jpg"
+    ],
+    "CriticalCare_p86": [
+      "CriticalCare_p86_0.jpg"
+    ],
+    "CriticalCare_p109": [
+      "CriticalCare_p109_0.jpg"
+    ],
+    "CriticalCare_p111": [
+      "CriticalCare_p111_0.jpg"
+    ],
+    "CriticalCare_p119": [
+      "CriticalCare_p119_0.jpg"
+    ],
+    "CriticalCare_p123": [
+      "CriticalCare_p123_0.jpg"
+    ],
+    "CriticalCare_p139": [
+      "CriticalCare_p139_0.jpg"
+    ],
+    "CriticalCare_p147": [
+      "CriticalCare_p147_0.jpg"
+    ],
+    "CriticalCare_p151": [
+      "CriticalCare_p151_0.jpg"
+    ],
+    "Thoracic_p14": [
+      "Thoracic_p14_0.jpg"
+    ],
+    "Thoracic_p19": [
+      "Thoracic_p19_0.jpg"
+    ],
+    "Thoracic_p28": [
+      "Thoracic_p28_0.jpg"
+    ],
+    "Thoracic_p31": [
+      "Thoracic_p31_0.jpg"
+    ],
+    "Thoracic_p49": [
+      "Thoracic_p49_0.jpg"
+    ],
+    "Thoracic_p67": [
+      "Thoracic_p67_0.jpg"
+    ],
+    "Thoracic_p89": [
+      "Thoracic_p89_0.jpg"
+    ],
+    "Thoracic_p95": [
+      "Thoracic_p95_0.jpg"
+    ],
+    "Thoracic_p118": [
+      "Thoracic_p118_0.jpg"
+    ],
+    "Thoracic_p120": [
+      "Thoracic_p120_0.jpg"
+    ],
+    "Thoracic_p124": [
+      "Thoracic_p124_0.jpg"
+    ],
+    "Thoracic_p135": [
+      "Thoracic_p135_0.jpg"
+    ],
+    "Thoracic_p148": [
+      "Thoracic_p148_0.jpg"
+    ],
+    "Thoracic_p152": [
+      "Thoracic_p152_0.jpg"
+    ],
+    "Thoracic_p159": [
+      "Thoracic_p159_0.jpg"
+    ],
+    "Thoracic_p166": [
+      "Thoracic_p166_0.jpg"
+    ],
+    "Thoracic_p171": [
+      "Thoracic_p171_0.jpg"
+    ],
+    "Thoracic_p174": [
+      "Thoracic_p174_0.jpg"
+    ],
+    "Thoracic_p177": [
+      "Thoracic_p177_0.jpg"
+    ],
+    "Thoracic_p180": [
+      "Thoracic_p180_0.jpg"
+    ],
+    "Thoracic_p183": [
+      "Thoracic_p183_0.jpg"
+    ],
+    "Thoracic_p186": [
+      "Thoracic_p186_0.jpg"
+    ],
+    "Thoracic_p190": [
+      "Thoracic_p190_0.jpg"
+    ],
+    "Thoracic_p206": [
+      "Thoracic_p206_0.jpg"
+    ],
+    "Thoracic_p208": [
+      "Thoracic_p208_0.jpg"
+    ],
+    "Thoracic_p221": [
+      "Thoracic_p221_0.jpg"
+    ],
+    "Thoracic_p228": [
+      "Thoracic_p228_0.jpg"
+    ],
+    "Thoracic_p230": [
+      "Thoracic_p230_0.jpg"
+    ],
+    "Thoracic_p253": [
+      "Thoracic_p253_0.jpg"
+    ],
+    "Thoracic_p264": [
+      "Thoracic_p264_0.jpg"
+    ],
+    "Thoracic_p268": [
+      "Thoracic_p268_0.jpg"
+    ],
+    "Thoracic_p270": [
+      "Thoracic_p270_0.jpg"
+    ]
+  }
+}

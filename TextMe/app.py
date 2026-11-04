@@ -10,8 +10,11 @@ import html
 import json
 import threading
 import random
+import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from flask import Flask, request, Response, send_from_directory
 from twilio.twiml.messaging_response import MessagingResponse
@@ -36,20 +39,59 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 USE_WHATSAPP = os.getenv("USE_WHATSAPP", "false").lower() == "true"
 WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER", "whatsapp:+14155238886")
 
-RECIPIENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recipients.txt")
-PROGRESS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "progress.json")
-QUESTIONS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "questions_cache.json")
-PREVIOUS_QUESTIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "questions_cache_previous.json")
-EVENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "events.jsonl")
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# Where recipients, progress, the event log, question caches and images live.
+# On a cloud host, point this at a persistent volume so redeploys don't wipe it.
+DATA_DIR = os.path.abspath(os.getenv("DATA_DIR", APP_DIR))
+TIMEZONE = ZoneInfo(os.getenv("TIMEZONE", "America/New_York"))
+
+RECIPIENTS_FILE = os.path.join(DATA_DIR, "recipients.txt")
+PROGRESS_FILE = os.path.join(DATA_DIR, "progress.json")
+QUESTIONS_CACHE_FILE = os.path.join(DATA_DIR, "questions_cache.json")
+PREVIOUS_QUESTIONS_FILE = os.path.join(DATA_DIR, "questions_cache_previous.json")
+EVENTS_FILE = os.path.join(DATA_DIR, "events.jsonl")
 REPORT_KEY = os.getenv("REPORT_KEY", "")
 VALIDATE_TWILIO_SIGNATURE = os.getenv("VALIDATE_TWILIO_SIGNATURE", "true").lower() == "true"
-IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
-NGROK_URL = os.getenv("NGROK_URL", "").rstrip("/")
+IMAGE_DIR = os.path.join(DATA_DIR, "images")
+# The app's public address (Railway URL in the cloud, ngrok URL locally).
+NGROK_URL = (os.getenv("PUBLIC_URL") or os.getenv("NGROK_URL", "")).rstrip("/")
 PICTURE_QUESTIONS_PER_BATCH = int(os.getenv("PICTURE_QUESTIONS_PER_BATCH", "2"))
 QUESTIONS_PER_DAY = int(os.getenv("QUESTIONS_PER_DAY", "3"))
 SEND_ON_START = os.getenv("SEND_ON_START", "true").lower() == "true"
 
 os.makedirs(IMAGE_DIR, exist_ok=True)
+
+
+def seed_data_dir() -> None:
+    # First boot on a fresh volume: copy over whatever data shipped with the app,
+    # never overwriting what's already there.
+    if DATA_DIR == APP_DIR:
+        return
+    for name in ("recipients.txt", "progress.json", "questions_cache.json",
+                 "questions_cache_previous.json", "events.jsonl"):
+        src, dst = os.path.join(APP_DIR, name), os.path.join(DATA_DIR, name)
+        if os.path.exists(src) and not os.path.exists(dst):
+            shutil.copy2(src, dst)
+            print(f"[Data] Seeded {name}")
+    src_images = os.path.join(APP_DIR, "images")
+    if os.path.isdir(src_images):
+        for name in os.listdir(src_images):
+            dst = os.path.join(IMAGE_DIR, name)
+            if not os.path.exists(dst):
+                shutil.copy2(os.path.join(src_images, name), dst)
+    # Recipients can also come from a setting, so phone numbers needn't live in git.
+    # Format: "+15551234567, Emily; +15557654321, Chris"
+    seed = os.getenv("SEED_RECIPIENTS", "").strip()
+    if seed and not os.path.exists(RECIPIENTS_FILE):
+        with open(RECIPIENTS_FILE, "w") as f:
+            f.write("# Format: +1XXXXXXXXXX, First Name\n")
+            for entry in seed.split(";"):
+                if entry.strip():
+                    f.write(entry.strip() + "\n")
+        print("[Data] Seeded recipients.txt from SEED_RECIPIENTS")
+
+
+seed_data_dir()
 
 claude = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 twilio = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -126,7 +168,7 @@ _events_lock = threading.Lock()
 
 def log_event(event: str, phone: str, name: str = "", **fields) -> None:
     record = {
-        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "ts": datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S"),
         "event": event,
         "phone": phone,
         "name": name,
@@ -1428,10 +1470,14 @@ def webhook():
 
 threading.Thread(target=preload_questions, daemon=True).start()
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(send_daily_questions, "cron", hour=SEND_HOUR, minute=SEND_MINUTE)
+# Pin the time zone: cloud servers run on UTC, which would move 7 am to the middle of the night.
+# misfire_grace_time lets a send that's a few minutes late (e.g. during a restart) still go out.
+scheduler = BackgroundScheduler(timezone=TIMEZONE)
+scheduler.add_job(send_daily_questions, "cron", hour=SEND_HOUR, minute=SEND_MINUTE,
+                  misfire_grace_time=600, coalesce=True)
 scheduler.start()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    app.run(debug=False, port=port)
+    # Locally, only this computer can reach Flask (ngrok forwards to it). In the cloud set HOST=0.0.0.0.
+    app.run(debug=False, host=os.getenv("HOST", "127.0.0.1"), port=port)

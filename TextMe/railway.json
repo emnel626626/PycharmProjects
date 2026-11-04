@@ -1,0 +1,8 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "startCommand": "gunicorn app:app --workers 1 --threads 8 --timeout 600 --bind 0.0.0.0:$PORT",
+    "healthcheckPath": "/privacy",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
